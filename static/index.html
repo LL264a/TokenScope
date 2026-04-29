@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Token 监控面板</title>
-    <script>/* 版本号 */ const APP_VERSION = 'v1.5.0';</script>
+    <script>/* 版本号 */ const APP_VERSION = 'v1.5.2';</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -723,6 +723,64 @@ function toast(msg, type='info') {
     setTimeout(() => el.remove(), 4000);
 }
 
+/* ====== 保存凭证后立即检查+采集 ====== */
+async function checkAndRefreshAfterSave(platform) {
+    const platformName = NAMES[platform] || platform;
+    toast('⏳ 正在验证 ' + platformName + ' 凭证...', 'info');
+    try {
+        // 第一步：检查凭证是否有效
+        const checkResp = await authFetch('/api/admin/check-credential/' + platform, {method:'POST'});
+        const checkResult = await checkResp.json();
+
+        if (checkResult.error && !checkResult.details) {
+            toast('❌ ' + platformName + ' 凭证检查失败: ' + (checkResult.error || '未知错误'), 'error');
+            return;
+        }
+
+        const allOk = checkResult.status === 'ok';
+        if (!allOk) {
+            // 凭证无效，显示详细错误
+            let errMsg = '';
+            if (checkResult.details) {
+                checkResult.details.forEach(d => {
+                    if (d.status !== 'ok') {
+                        errMsg += (NAMES[d.platform]||d.platform) + ': ' + (d.error||'失败');
+                        if (d.cookie_expired) errMsg += ' (Cookie已失效)';
+                        errMsg += '\n';
+                    }
+                });
+            }
+            toast('❌ ' + platformName + ' 凭证无效\n' + errMsg.trim(), 'error');
+            return;
+        }
+
+        // 第二步：凭证有效，立即刷新采集数据
+        toast('✅ ' + platformName + ' 凭证有效，正在采集数据...', 'success');
+        const refreshResp = await authFetch('/api/admin/refresh/' + platform, {method:'POST'});
+        const refreshResult = await refreshResp.json();
+
+        if (refreshResult.status === 'ok') {
+            const results = refreshResult.results || {};
+            let hasError = false;
+            for (const [sub, info] of Object.entries(results)) {
+                if (info.status === 'failed' || info.status === 'error') {
+                    hasError = true;
+                    toast('⚠️ ' + (NAMES[sub]||sub) + ' 采集失败: ' + (info.error||''), 'error');
+                }
+            }
+            if (!hasError) {
+                toast('✅ ' + platformName + ' 数据已更新', 'success');
+            }
+            // 立即刷新前端显示
+            load();
+        }
+    } catch(e) {
+        if (e.message !== '未授权') {
+            toast('验证请求失败: ' + e.message, 'error');
+        }
+    }
+}
+
 /* ====== 颜色规则 ====== */
 function getColorClass(pct) {
     if (pct >= 80) return { fill: 'fill-red', text: 'red' };
@@ -800,6 +858,12 @@ function renderCookieAlert(statusList) {
     container.innerHTML = '<div class="cookie-alert expired">⚠️ ' + text + '</div>';
 }
 
+function renderNoDataCard(p) {
+    const icon = {tencent:'🔷',volcano:'🌋',xiaomi:'🧸'}[p.platform] || '📊';
+    const name = NAMES[p.platform] || p.platform;
+    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">' + icon + ' ' + escHtml(name) + '</div><div class="subtitle">凭证已保存</div></div><span class="status-badge badge-warning">无数据</span></div><div style="padding:32px;text-align:center;color:#64748b"><div style="font-size:16px;margin-bottom:8px">⏳ 等待数据采集</div><div style="font-size:13px;color:#4b5563">凭证已保存，但尚未成功采集到数据。<br>可能是 Cookie 已失效，请在管理页更新凭证后刷新。</div></div><div class="card-footer"><span>' + escHtml(name) + '</span><span>-</span></div></div>';
+}
+
 function renderPlatforms(platforms) {
     const el = document.getElementById('platforms');
     if (!platforms.length) {
@@ -807,6 +871,7 @@ function renderPlatforms(platforms) {
         return;
     }
     el.innerHTML = platforms.map(p => {
+        if (p.no_data) return renderNoDataCard(p);
         if (p.platform === 'tencent' && p.services) return renderTencentCard(p);
         if (p.platform === 'volcano' && p.services) return renderVolcanoGroupCard(p);
         if (p.platform === 'xiaomi') return renderXiaomiCard(p);
@@ -1268,7 +1333,14 @@ async function saveCredential() {
     try {
         const resp = await authFetch('/api/admin/credentials', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({platform, credential_type: cred_type, credential_data: cred_data, note}) });
         const result = await resp.json();
-        if (result.status === 'ok') { toast(result.message, 'success'); document.getElementById('cred-data').value=''; document.getElementById('cred-note').value=''; loadCredentials(); }
+        if (result.status === 'ok') {
+            toast(result.message, 'success');
+            document.getElementById('cred-data').value='';
+            document.getElementById('cred-note').value='';
+            loadCredentials();
+            // 保存成功后立即检查凭证并采集数据
+            await checkAndRefreshAfterSave(platform);
+        }
         else { toast(result.error || '保存失败', 'error'); }
     } catch(e) { if (e.message !== '未授权') toast('请求失败: '+e.message, 'error'); }
 }
@@ -1354,6 +1426,8 @@ async function doUpdateCred(platform, credType) {
             toast((NAMES[platform]||platform)+' 凭证已更新', 'success');
             hideUpdateCred(platform);
             loadCredentials();
+            // 更新成功后立即检查凭证并采集数据
+            await checkAndRefreshAfterSave(platform);
         } else {
             toast(result.error || '更新失败', 'error');
         }

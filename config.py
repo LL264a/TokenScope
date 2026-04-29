@@ -3,7 +3,7 @@
 from pathlib import Path
 
 # ============ 版本 ============
-APP_VERSION = 'v1.5.0'
+APP_VERSION = 'v1.5.2'
 
 # ============ 路径 ============
 PROJECT_DIR = Path(__file__).parent

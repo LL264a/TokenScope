@@ -140,7 +140,9 @@ def auth_change_password(data: dict, token: str = Depends(require_auth)):
 
 @router.get("/api/stats")
 def get_stats():
-    """获取所有平台统计数据（腾讯三子计划聚合为一个大卡）"""
+    """获取所有平台统计数据（腾讯三子计划聚合为一个大卡）
+    有凭证但无数据的平台也会显示（标记 no_data=True）
+    """
     sub_data = get_latest_usage()
 
     all_platforms = {}
@@ -215,6 +217,39 @@ def get_stats():
             "calls": 0,
             "services": volcano_services,
         }
+
+    # 有凭证但无数据的平台：显示占位卡片
+    creds = list_credentials()
+    cred_platforms = set(c["platform"] for c in creds)
+    for platform_key in cred_platforms:
+        if platform_key in all_platforms:
+            continue  # 已有数据，跳过
+        # 腾讯有凭证但无数据 → 也要聚合显示
+        if platform_key == "tencent" and "tencent" not in all_platforms:
+            all_platforms["tencent"] = {
+                "platform": "tencent",
+                "total_tokens": 0, "input_tokens": 0, "output_tokens": 0,
+                "cost": 0, "remaining": "", "last_updated": "",
+                "source": "console", "calls": 0,
+                "services": [], "no_data": True,
+            }
+        elif platform_key == "volcano" and "volcano" not in all_platforms:
+            all_platforms["volcano"] = {
+                "platform": "volcano",
+                "total_tokens": 0, "input_tokens": 0, "output_tokens": 0,
+                "cost": 0, "remaining": "", "last_updated": "",
+                "source": "console", "calls": 0,
+                "services": [], "no_data": True,
+            }
+        elif platform_key not in ("tencent", "volcano"):
+            # 其他独立平台（如 xiaomi）
+            all_platforms[platform_key] = {
+                "platform": platform_key,
+                "total_tokens": 0, "input_tokens": 0, "output_tokens": 0,
+                "cost": 0, "remaining": "", "last_updated": "",
+                "source": "console", "calls": 0,
+                "no_data": True,
+            }
 
     # 排序权重
     weights = get_sort_weights()
