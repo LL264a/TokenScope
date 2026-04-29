@@ -74,4 +74,4 @@ define('TM_SESSION_EXPIRE', 86400); // 24小时
 define('TM_LOGIN_MAX_ATTEMPTS', 5);
 define('TM_LOGIN_WINDOW', 300); // 5分钟
 define('TM_PBKDF2_ITERATIONS', 200000);
-define('TM_PBKDF2_SALT', 'token_monitor_2026_production_salt');
+define('TM_PBKDF2_SALT', getenv('TOKEN_MONITOR_SALT') ?: 'token_monitor_2026_production_salt');

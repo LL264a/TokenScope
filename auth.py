@@ -3,10 +3,11 @@
 import secrets
 import hashlib
 import time
+import os
 
 # ============ 密码哈希 ============
 
-_SALT = "token_monitor_2026_production_salt"
+_SALT = os.environ.get("TOKEN_MONITOR_SALT", "token_monitor_2026_production_salt")
 _ITERATIONS = 200_000  # PBKDF2 迭代次数
 
 

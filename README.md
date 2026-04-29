@@ -22,7 +22,7 @@
 ```bash
 # 克隆项目
 git clone https://github.com/LL264a/TokenScope.git
-cd TokenPulse
+cd TokenScope
 
 # 创建虚拟环境
 python -m venv .venv
