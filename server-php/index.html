@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token 监控面板</title>
+    <script>/* 版本号 */ const APP_VERSION = 'v1.4.0';</script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #0a0e1a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        /* ====== 顶栏 ====== */
+        .top-bar {
+            background: linear-gradient(135deg, #1a1f35, #0f172a);
+            border-bottom: 1px solid #1e293b;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .top-bar h1 {
+            font-size: 20px;
+            background: linear-gradient(135deg, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            cursor: pointer;
+        }
+        .top-bar .meta {
+            font-size: 12px;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .top-bar .nav-btns { display: flex; gap: 8px; }
+        .top-bar .nav-btns button {
+            padding: 6px 16px;
+            border-radius: 8px;
+            border: 1px solid #1e293b;
+            background: #111827;
+            color: #94a3b8;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .top-bar .nav-btns button:hover { border-color: #60a5fa; color: #60a5fa; }
+        .top-bar .nav-btns button.active { background: #1e3a5f; border-color: #60a5fa; color: #60a5fa; }
+        .live-dot {
+            width: 6px; height: 6px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: blink 2s infinite;
+            display: inline-block;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+        .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+
+        /* ====== Cookie 失效警告横幅 ====== */
+        .cookie-alert {
+            background: linear-gradient(135deg, #7f1d1d, #991b1b);
+            border: 1px solid #dc2626;
+            border-radius: 12px;
+            padding: 14px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            animation: alertPulse 2s ease-in-out infinite;
+        }
+        .cookie-alert .alert-icon { font-size: 28px; }
+        .cookie-alert .alert-body { flex: 1; }
+        .cookie-alert .alert-title { font-size: 15px; font-weight: 700; color: #fca5a5; }
+        .cookie-alert .alert-desc { font-size: 12px; color: #f87171; margin-top: 2px; }
+        .cookie-alert .alert-platforms { font-size: 12px; color: #fecaca; margin-top: 4px; }
+        .cookie-alert .alert-time { font-size: 11px; color: #991b1b; margin-top: 2px; }
+        @keyframes alertPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.3); }
+            50% { box-shadow: 0 0 20px 4px rgba(220, 38, 38, 0.2); }
+        }
+
+        /* ====== 页面切换 ====== */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* ====== 抓取状态栏 ====== */
+        .scrape-bar {
+            background: #111827;
+            border: 1px solid #1e293b;
+            border-radius: 10px;
+            padding: 12px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .scrape-bar .title { font-size: 13px; color: #94a3b8; }
+        .scrape-bar .info { font-size: 12px; color: #4b5563; }
+
+        /* ====== 平台卡片网格 ====== */
+        .platform-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        @media (min-width: 1400px) {
+            .platform-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        /* ====== 卡片基础 ====== */
+        .plan-card {
+            background: #111827;
+            border: 1px solid #1e293b;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+        }
+        .card-header {
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #1e293b;
+        }
+        .card-header .title { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+        .card-header .subtitle { font-size: 13px; color: #64748b; margin-top: 2px; }
+        .status-badge { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
+        .badge-available { background: rgba(34,197,94,0.15); color: #4ade80; }
+        .badge-warning   { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .badge-exhausted { background: rgba(239,68,68,0.15); color: #f87171; }
+
+        .plan-info {
+            padding: 16px 24px;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            font-size: 13px;
+            color: #94a3b8;
+            border-bottom: 1px solid #1e293b;
+        }
+        .plan-info span { display: flex; align-items: center; gap: 4px; }
+
+        /* ====== Coding Plan: 三层配额 ====== */
+        .quota-body { padding: 20px 24px; }
+        .quota-item { margin-bottom: 16px; }
+        .quota-item:last-child { margin-bottom: 0; }
+        .quota-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .quota-label { font-size: 14px; font-weight: 500; color: #cbd5e1; display: flex; align-items: center; gap: 6px; }
+        .quota-total-hint { font-size: 12px; color: #64748b; font-weight: 400; }
+        .quota-remaining { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .progress-track { width: 100%; height: 10px; background: #1e293b; border-radius: 5px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 5px; transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
+        .fill-green { background: linear-gradient(90deg, #22c55e, #4ade80); }
+        .fill-yellow { background: linear-gradient(90deg, #eab308, #fbbf24); }
+        .fill-red { background: linear-gradient(90deg, #dc2626, #f87171); }
+        .quota-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+        .quota-pct { font-size: 12px; font-weight: 600; }
+        .quota-refresh { font-size: 11px; color: #4b5563; }
+
+        /* ====== 传统计划 ====== */
+        .tokenplan-body { padding: 24px; }
+
+        /* ====== MIMO 卡片区块 ====== */
+        .xiaomi-section {
+            padding: 16px 24px;
+            border-bottom: 1px solid #1e293b;
+        }
+        .xiaomi-section:last-of-type { border-bottom: none; }
+        .quota-hero { text-align: center; margin-bottom: 20px; }
+        .quota-hero .remaining-label { font-size: 13px; color: #64748b; margin-bottom: 4px; }
+        .quota-hero .remaining-value { font-size: 36px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
+        .quota-hero .remaining-unit { font-size: 16px; font-weight: 400; color: #94a3b8; margin-left: 4px; }
+        .quota-hero .total-hint { font-size: 12px; color: #4b5563; margin-top: 4px; }
+        .progress-section { margin-bottom: 20px; }
+        .progress-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; }
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .detail-item { background: #0d1117; border-radius: 10px; padding: 14px 16px; }
+        .detail-item .label { font-size: 11px; color: #64748b; margin-bottom: 4px; }
+        .detail-item .val { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+        .card-footer {
+            padding: 12px 24px;
+            background: #0d1117;
+            font-size: 11px;
+            color: #4b5563;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* ====== 腾讯子服务 ====== */
+        .sub-service { border-bottom: 1px solid #1e293b; position: relative; }
+        .sub-service:last-of-type { border-bottom: none; }
+        .sub-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 24px;
+            background: #0d1117;
+            font-size: 15px;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+        .sub-hide-btn {
+            background: none; border: none; color: #4b5563; font-size: 16px;
+            cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all 0.2s;
+            line-height: 1;
+        }
+        .sub-hide-btn:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
+        .sub-hide-btn.disabled { opacity: 0.3; cursor: not-allowed; }
+        .sub-hide-btn.disabled:hover { color: #4b5563; background: none; }
+
+        /* ====== 蓝色遮罩：额度已用尽 ====== */
+        .exhausted-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(30, 64, 175, 0.25);
+            backdrop-filter: blur(4px);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 10; animation: fadeIn 0.5s ease;
+        }
+        .exhausted-text { font-size: 28px; font-weight: 800; color: #ef4444; text-shadow: 0 0 20px rgba(239,68,68,0.5); letter-spacing: 4px; margin-bottom: 12px; }
+        .exhausted-recovery { font-size: 14px; color: #93c5fd; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .exhausted-recovery .time { font-size: 16px; font-weight: 600; color: #bfdbfe; }
+        .exhausted-recovery .countdown { font-size: 13px; color: #60a5fa; }
+
+        /* 子服务级别遮罩（文字稍小） */
+        .sub-exhausted-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(30, 64, 175, 0.25);
+            backdrop-filter: blur(4px);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 10; animation: fadeIn 0.5s ease;
+        }
+        .sub-exhausted-overlay .exhausted-text { font-size: 20px; letter-spacing: 3px; margin-bottom: 8px; }
+        .sub-exhausted-overlay .exhausted-recovery { font-size: 12px; }
+        .sub-exhausted-overlay .exhausted-recovery .time { font-size: 14px; }
+        .sub-exhausted-overlay .exhausted-recovery .countdown { font-size: 12px; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* ====== 颜色工具 ====== */
+        .green { color: #4ade80; }
+        .yellow { color: #fbbf24; }
+        .red { color: #f87171; }
+        .blue { color: #60a5fa; }
+
+        .empty-state { text-align: center; padding: 40px; color: #4b5563; }
+        .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+        .empty-state .msg { font-size: 14px; margin-bottom: 8px; }
+        .empty-state .hint { font-size: 12px; color: #64748b; }
+
+        /* ====== 认证相关 ====== */
+        .auth-container {
+            max-width: 400px;
+            margin: 80px auto;
+            text-align: center;
+        }
+        .auth-card {
+            background: #111827;
+            border: 1px solid #1e293b;
+            border-radius: 16px;
+            padding: 40px 32px;
+        }
+        .auth-card .auth-icon { font-size: 48px; margin-bottom: 16px; }
+        .auth-card .auth-title { font-size: 20px; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; }
+        .auth-card .auth-desc { font-size: 13px; color: #64748b; margin-bottom: 24px; }
+        .auth-card .form-group { margin-bottom: 16px; text-align: left; }
+        .auth-card .form-group label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+        .auth-card .form-group input {
+            width: 100%; padding: 12px 16px;
+            background: #0d1117; border: 1px solid #1e293b; border-radius: 8px;
+            color: #e2e8f0; font-size: 14px; outline: none; transition: border-color 0.2s;
+        }
+        .auth-card .form-group input:focus { border-color: #60a5fa; }
+        .auth-card .auth-error { font-size: 12px; color: #f87171; margin-top: 8px; min-height: 18px; }
+        .auth-card .btn { width: 100%; padding: 12px; font-size: 14px; }
+
+        .admin-locked-notice {
+            text-align: center; padding: 60px 20px; color: #4b5563;
+        }
+        .admin-locked-notice .icon { font-size: 48px; margin-bottom: 16px; }
+        .admin-locked-notice .msg { font-size: 16px; margin-bottom: 8px; color: #94a3b8; }
+        .admin-locked-notice .hint { font-size: 12px; color: #64748b; }
+
+        /* 登出按钮 */
+        .logout-btn {
+            padding: 4px 12px; border-radius: 6px; border: 1px solid #1e293b;
+            background: transparent; color: #64748b; font-size: 12px; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .logout-btn:hover { border-color: #ef4444; color: #ef4444; }
+
+        /* ====== 管理后台 ====== */
+        .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+        .admin-card { background: #111827; border: 1px solid #1e293b; border-radius: 14px; padding: 24px; }
+        .admin-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .admin-card.full-width { grid-column: 1 / -1; }
+        .cred-table { width: 100%; border-collapse: collapse; }
+        .cred-table th { text-align: left; padding: 10px 12px; font-size: 12px; color: #64748b; border-bottom: 1px solid #1e293b; }
+        .cred-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #0d1117; }
+        .cred-type-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .type-cookie { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .type-api_key { background: rgba(96,165,250,0.15); color: #60a5fa; }
+
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+        .form-group select, .form-group input, .form-group textarea {
+            width: 100%; padding: 10px 14px;
+            background: #0d1117; border: 1px solid #1e293b; border-radius: 8px;
+            color: #e2e8f0; font-size: 13px; outline: none; transition: border-color 0.2s;
+        }
+        .form-group select:focus, .form-group input:focus, .form-group textarea:focus { border-color: #60a5fa; }
+        .form-group textarea { min-height: 80px; font-family: 'Consolas', 'Fira Code', monospace; font-size: 12px; resize: vertical; }
+        .form-hint { font-size: 11px; color: #4b5563; margin-top: 4px; }
+
+        .btn { padding: 8px 20px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #2563eb; color: white; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-danger { background: #991b1b; color: #fca5a5; }
+        .btn-danger:hover { background: #7f1d1d; }
+        .btn-success { background: #166534; color: #86efac; }
+        .btn-success:hover { background: #14532d; }
+        .btn-warning { background: #854d0e; color: #fde68a; }
+        .btn-warning:hover { background: #713f12; }
+        .btn-outline { background: transparent; border: 1px solid #1e293b; color: #94a3b8; }
+        .btn-outline:hover { border-color: #60a5fa; color: #60a5fa; }
+        .btn-row { display: flex; gap: 8px; align-items: center; }
+
+        .scheduler-status { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+        .status-indicator { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .status-dot-admin { width: 10px; height: 10px; border-radius: 50%; }
+        .dot-running { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+        .dot-stopped { background: #6b7280; }
+        .interval-control { display: flex; align-items: center; gap: 8px; }
+        .interval-control input { width: 80px; padding: 6px 10px; background: #0d1117; border: 1px solid #1e293b; border-radius: 6px; color: #e2e8f0; font-size: 13px; text-align: center; }
+
+        .log-table { width: 100%; border-collapse: collapse; }
+        .log-table th { text-align: left; padding: 8px 10px; font-size: 11px; color: #64748b; border-bottom: 1px solid #1e293b; }
+        .log-table td { padding: 8px 10px; font-size: 12px; border-bottom: 1px solid #0d1117; }
+        .log-success { color: #4ade80; }
+        .log-failed { color: #f87171; }
+        .log-error { color: #ef4444; }
+
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+        .toast { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; margin-bottom: 8px; font-size: 13px; color: #e2e8f0; animation: slideIn 0.3s ease; max-width: 360px; }
+        .toast.success { border-color: #22c55e; }
+        .toast.error { border-color: #ef4444; }
+        .toast.info { border-color: #60a5fa; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+
+        @media (max-width: 768px) {
+            .admin-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <h1 onclick="switchPage('monitor')">Token 监控面板 <span style="font-size:12px;color:#4ade80;-webkit-text-fill-color:#4ade80;opacity:0.9" id="version-tag"></span></h1>
+        <div class="nav-btns">
+            <button class="active" onclick="switchPage('monitor')" id="btn-monitor">📊 监控</button>
+            <button onclick="switchPage('admin')" id="btn-admin">⚙️ 管理</button>
+        </div>
+        <div class="meta">
+            <span><span class="live-dot"></span> <span id="status">连接中...</span></span>
+            <span>刷新倒计时 <span id="cd">30</span>s</span>
+            <span id="auth-indicator" style="display:none">
+                <button class="logout-btn" onclick="doLogout()">🔓 退出</button>
+            </span>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toasts"></div>
+
+    <div class="container">
+        <!-- ====== 监控页 ====== -->
+        <div class="page active" id="page-monitor">
+            <div class="scrape-bar">
+                <span class="title">数据来源</span>
+                <span class="info" id="scrape-info">加载中...</span>
+            </div>
+            <div id="cookie-alert-container"></div>
+            <div class="platform-grid" id="platforms"></div>
+        </div>
+
+        <!-- ====== 管理页 ====== -->
+        <div class="page" id="page-admin">
+            <!-- 未认证：登录/设置密码 -->
+            <div id="admin-auth-area"></div>
+            <!-- 已认证：管理内容 -->
+            <div id="admin-content" style="display:none">
+                <div class="admin-grid">
+                    <!-- 定时刷新 -->
+                    <div class="admin-card">
+                        <h3>🔄 定时刷新</h3>
+                        <div class="scheduler-status">
+                            <div class="status-indicator">
+                                <div class="status-dot-admin dot-stopped" id="scheduler-dot"></div>
+                                <span id="scheduler-label">已停止</span>
+                            </div>
+                            <span style="font-size:13px;color:#64748b" id="scheduler-interval-label">间隔: 5分0秒</span>
+                        </div>
+                        <div class="interval-control" style="margin-bottom:12px">
+                            <label style="font-size:12px;color:#94a3b8">间隔(秒):</label>
+                            <input type="number" id="interval-input" value="300" min="60" step="60">
+                            <button class="btn btn-outline" onclick="updateInterval()">应用</button>
+                        </div>
+                        <div class="btn-row">
+                            <button class="btn btn-success" onclick="schedulerAction('start')">▶ 启动</button>
+                            <button class="btn btn-warning" onclick="schedulerAction('stop')">⏹ 停止</button>
+                            <button class="btn btn-outline" onclick="schedulerAction('restart')">🔄 重启</button>
+                            <button class="btn btn-primary" onclick="refreshNow()">⚡ 立即刷新</button>
+                        </div>
+                    </div>
+
+                    <!-- 手动添加凭证 -->
+                    <div class="admin-card">
+                        <h3>➕ 手动添加凭证</h3>
+                        <div class="form-group">
+                            <label>平台</label>
+                            <select id="cred-platform" onchange="onPlatformChange()">
+                                <option value="">选择平台...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>凭证类型</label>
+                            <select id="cred-type"><option value="cookie">Cookie</option><option value="api_key">API Key</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>凭证数据</label>
+                            <textarea id="cred-data" placeholder="粘贴 Cookie 或 API Key..."></textarea>
+                            <div class="form-hint" id="cred-hint">从浏览器 DevTools → Network → 任意请求的 Cookie 头复制</div>
+                        </div>
+                        <div class="form-group">
+                            <label>备注（可选）</label>
+                            <input type="text" id="cred-note" placeholder="如：主账号Cookie">
+                        </div>
+                        <button class="btn btn-primary" onclick="saveCredential()">💾 保存凭证</button>
+                    </div>
+
+                    <!-- 平台排序 -->
+                    <div class="admin-card">
+                        <h3>🔢 平台排序</h3>
+                        <div style="font-size:12px;color:#64748b;margin-bottom:12px">权重越高越靠前，如 99 排第一，98 排第二</div>
+                        <div id="sort-weight-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+                        <button class="btn btn-primary" onclick="saveSortWeights()">💾 保存排序</button>
+                    </div>
+
+                    <!-- 已隐藏服务 -->
+                    <div class="admin-card">
+                        <h3>👁️ 已隐藏的服务</h3>
+                        <div style="font-size:12px;color:#64748b;margin-bottom:12px">在监控页点击子服务的 ✕ 按钮可隐藏，此处可恢复</div>
+                        <div id="hidden-services-list" style="display:flex;flex-direction:column;gap:6px"></div>
+                    </div>
+
+                    <!-- 修改密码 -->
+                    <div class="admin-card" style="grid-column: 1 / -1">
+                        <h3>🔑 修改密码</h3>
+                        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+                            <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
+                                <label>当前密码</label>
+                                <input type="password" id="old-password" placeholder="输入当前密码">
+                            </div>
+                            <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
+                                <label>新密码</label>
+                                <input type="password" id="new-password" placeholder="至少4位">
+                            </div>
+                            <button class="btn btn-warning" onclick="changePassword()" style="margin-bottom:0">修改密码</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 已保存凭证 -->
+                <div class="admin-card full-width" style="margin-bottom:24px">
+                    <h3>🔐 已保存的凭证</h3>
+                    <table class="cred-table">
+                        <thead><tr><th>平台</th><th>类型</th><th>备注</th><th>更新时间</th><th>操作</th></tr></thead>
+                        <tbody id="cred-tbody"></tbody>
+                    </table>
+                </div>
+
+                <!-- 刷新日志 -->
+                <div class="admin-card full-width">
+                    <h3>📋 刷新日志</h3>
+                    <table class="log-table">
+                        <thead><tr><th>时间</th><th>平台</th><th>状态</th><th>消息</th><th>耗时</th></tr></thead>
+                        <tbody id="log-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+/* ====== 配置 ====== */
+const NAMES = {
+    tencent:'腾讯云', tencent_codingplan:'Coding Plan',
+    tencent_hy_tokenplan:'Hy Token Plan', tencent_tokenplan:'Token Plan（通用）',
+    volcano:'火山引擎', volcano_codingplan:'Coding Plan', volcano_ark:'火山方舟',
+    volcano_balance:'火山方舟',
+    xiaomi:'MIMO'
+};
+
+let cd = 30;
+let lastDataHash = '';  // 用于对比数据是否变化
+
+/* ====== 认证状态 ====== */
+let authToken = localStorage.getItem('token') || '';
+let isLoggedIn = false;
+let hasPassword = false;
+
+/* 带认证的 fetch 封装 */
+async function authFetch(url, options = {}) {
+    if (authToken) {
+        if (!options.headers) options.headers = {};
+        options.headers['Authorization'] = 'Bearer ' + authToken;
+    }
+    const resp = await fetch(url, options);
+    if (resp.status === 401) {
+        // Token 过期，清除登录状态
+        clearAuth();
+        toast('登录已过期，请重新登录', 'error');
+        // 如果在管理页，刷新认证区域
+        if (document.getElementById('page-admin').classList.contains('active')) {
+            renderAuthArea();
+        }
+        throw new Error('未授权');
+    }
+    return resp;
+}
+
+/* 清除认证 */
+function clearAuth() {
+    authToken = '';
+    isLoggedIn = false;
+    localStorage.removeItem('token');
+    updateAuthUI();
+}
+
+/* 更新认证相关UI */
+function updateAuthUI() {
+    const indicator = document.getElementById('auth-indicator');
+    if (isLoggedIn) {
+        indicator.style.display = 'inline';
+    } else {
+        indicator.style.display = 'none';
+    }
+}
+
+/* 检查认证状态 */
+async function checkAuthStatus() {
+    try {
+        const resp = await authFetch('/api/auth/status');
+        const data = await resp.json();
+        hasPassword = data.has_password;
+        isLoggedIn = data.authenticated;
+        updateAuthUI();
+        return data;
+    } catch(e) {
+        return { has_password: false, authenticated: false };
+    }
+}
+
+/* 渲染认证区域（管理页） */
+function renderAuthArea() {
+    const area = document.getElementById('admin-auth-area');
+    const content = document.getElementById('admin-content');
+
+    if (isLoggedIn) {
+        area.innerHTML = '';
+        content.style.display = 'block';
+        return;
+    }
+
+    content.style.display = 'none';
+
+    if (!hasPassword) {
+        // 首次设置密码
+        area.innerHTML = '<div class="auth-container"><div class="auth-card">' +
+            '<div class="auth-icon">🔐</div>' +
+            '<div class="auth-title">首次使用，请设置管理密码</div>' +
+            '<div class="auth-desc">设置密码后，管理后台和敏感操作将需要登录</div>' +
+            '<div class="form-group"><label>设置密码</label><input type="password" id="setup-password" placeholder="至少4位密码" onkeydown="if(event.key===\'Enter\')doSetup()"></div>' +
+            '<div class="form-group"><label>确认密码</label><input type="password" id="setup-password2" placeholder="再次输入密码" onkeydown="if(event.key===\'Enter\')doSetup()"></div>' +
+            '<div class="auth-error" id="setup-error"></div>' +
+            '<button class="btn btn-primary" onclick="doSetup()">设置密码并登录</button>' +
+            '</div></div>';
+    } else {
+        // 登录
+        area.innerHTML = '<div class="auth-container"><div class="auth-card">' +
+            '<div class="auth-icon">🔒</div>' +
+            '<div class="auth-title">管理后台登录</div>' +
+            '<div class="auth-desc">请输入管理密码以访问后台功能</div>' +
+            '<div class="form-group"><label>密码</label><input type="password" id="login-password" placeholder="输入管理密码" onkeydown="if(event.key===\'Enter\')doLogin()"></div>' +
+            '<div class="auth-error" id="login-error"></div>' +
+            '<button class="btn btn-primary" onclick="doLogin()">登录</button>' +
+            '</div></div>';
+        // 自动聚焦密码框
+        setTimeout(() => { const el = document.getElementById('login-password'); if (el) el.focus(); }, 100);
+    }
+}
+
+/* 首次设置密码 */
+async function doSetup() {
+    const pw = document.getElementById('setup-password').value;
+    const pw2 = document.getElementById('setup-password2').value;
+    const errEl = document.getElementById('setup-error');
+
+    if (pw.length < 4) { errEl.textContent = '密码至少4位'; return; }
+    if (pw !== pw2) { errEl.textContent = '两次密码不一致'; return; }
+
+    try {
+        const resp = await fetch('/api/auth/setup', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ password: pw })
+        });
+        const data = await resp.json();
+        if (resp.ok && data.token) {
+            authToken = data.token;
+            isLoggedIn = true;
+            hasPassword = true;
+            localStorage.setItem('token', authToken);
+            updateAuthUI();
+            toast('密码设置成功，已登录', 'success');
+            renderAuthArea();
+            loadAdminData();
+        } else {
+            errEl.textContent = data.detail || '设置失败';
+        }
+    } catch(e) {
+        errEl.textContent = '请求失败';
+    }
+}
+
+/* 登录 */
+async function doLogin() {
+    const pw = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+
+    if (!pw) { errEl.textContent = '请输入密码'; return; }
+
+    try {
+        const resp = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ password: pw })
+        });
+        const data = await resp.json();
+        if (resp.ok && data.token) {
+            authToken = data.token;
+            isLoggedIn = true;
+            localStorage.setItem('token', authToken);
+            updateAuthUI();
+            toast('登录成功', 'success');
+            renderAuthArea();
+            loadAdminData();
+        } else {
+            errEl.textContent = data.detail || '登录失败';
+        }
+    } catch(e) {
+        errEl.textContent = '请求失败';
+    }
+}
+
+/* 登出 */
+async function doLogout() {
+    try {
+        await authFetch('/api/auth/logout', { method: 'POST' });
+    } catch(e) {}
+    clearAuth();
+    toast('已退出登录', 'info');
+    if (document.getElementById('page-admin').classList.contains('active')) {
+        renderAuthArea();
+    }
+}
+
+/* 修改密码 */
+async function changePassword() {
+    const oldPw = document.getElementById('old-password').value;
+    const newPw = document.getElementById('new-password').value;
+    if (!oldPw || !newPw) { toast('请填写完整', 'error'); return; }
+    if (newPw.length < 4) { toast('新密码至少4位', 'error'); return; }
+    try {
+        const resp = await authFetch('/api/auth/change-password', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            toast('密码已修改', 'success');
+            document.getElementById('old-password').value = '';
+            document.getElementById('new-password').value = '';
+        } else {
+            toast(data.detail || '修改失败', 'error');
+        }
+    } catch(e) {
+        if (e.message !== '未授权') toast('请求失败', 'error');
+    }
+}
+
+/* ====== 页面切换 ====== */
+async function switchPage(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-btns button').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    document.getElementById('btn-' + page).classList.add('active');
+    if (page === 'admin') {
+        await checkAuthStatus();
+        renderAuthArea();
+        if (isLoggedIn) loadAdminData();
+    }
+}
+
+/* ====== Toast ====== */
+function toast(msg, type='info') {
+    const el = document.createElement('div');
+    el.className = 'toast ' + type;
+    el.textContent = msg;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+}
+
+/* ====== 颜色规则 ====== */
+function getColorClass(pct) {
+    if (pct >= 80) return { fill: 'fill-red', text: 'red' };
+    if (pct >= 50) return { fill: 'fill-yellow', text: 'yellow' };
+    return { fill: 'fill-green', text: 'green' };
+}
+function getStatusBadge(usedPct) {
+    if (usedPct >= 100) return { cls: 'badge-exhausted', text: '额度已用尽' };
+    if (usedPct >= 80)  return { cls: 'badge-warning', text: '额度紧张' };
+    return { cls: 'badge-available', text: '可用' };
+}
+function fmt(n) {
+    if (!n) return '0';
+    if (n >= 1e8) return (n/1e8).toFixed(1) + ' 亿';
+    if (n >= 1e4) return (n/1e4).toFixed(1) + ' 万';
+    if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+    return n.toLocaleString();
+}
+
+/* ====== 监控页 ====== */
+function checkRefreshTiming() {
+    const now = new Date();
+    const countdownEls = document.querySelectorAll('.countdown[data-recovery]');
+    let hasPendingRecovery = false;
+    for (const el of countdownEls) {
+        const recovery = new Date(el.dataset.recovery);
+        if (isNaN(recovery)) continue;
+        if (recovery <= now) return 'recover';
+        hasPendingRecovery = true;
+    }
+    return hasPendingRecovery ? 'skip' : 'refresh';
+}
+
+async function load() {
+    try {
+        const [stats, scrape, cookieSt] = await Promise.all([
+            fetch('/api/stats').then(r=>r.json()),
+            fetch('/api/scrape-status').then(r=>r.json()),
+            fetch('/api/cookie-status').then(r=>r.json()).catch(()=>[]),
+        ]);
+        const dataHash = JSON.stringify(stats.platforms || []);
+        if (dataHash !== lastDataHash) {
+            lastDataHash = dataHash;
+            renderPlatforms(stats.platforms || []);
+        }
+        renderScrapeInfo(scrape);
+        renderCookieAlert(cookieSt);
+        document.getElementById('status').textContent = '已连接';
+        cd = 30;
+    } catch(e) {
+        document.getElementById('status').textContent = '连接失败';
+    }
+}
+
+/* ====== Cookie 失效警告 ====== */
+function renderCookieAlert(statusList) {
+    const container = document.getElementById('cookie-alert-container');
+    if (!statusList || !statusList.length) { container.innerHTML = ''; return; }
+
+    const failed = statusList.filter(s => !s.healthy);
+    const cookieExpired = failed.filter(s => s.cookie_expired);
+    const otherFailed = failed.filter(s => !s.cookie_expired);
+
+    if (!failed.length) { container.innerHTML = ''; return; }
+
+    let html = '';
+    if (cookieExpired.length) {
+        const names = cookieExpired.map(s => escHtml(NAMES[s.platform] || s.platform)).join('、');
+        const lastCheck = escHtml(cookieExpired[0].last_check_fmt || '');
+        html += '<div class="cookie-alert">' +
+            '<span class="alert-icon">🍪</span>' +
+            '<div class="alert-body">' +
+            '<div class="alert-title">Cookie 已失效，数据无法更新</div>' +
+            '<div class="alert-platforms">受影响：' + names + '</div>' +
+            '<div class="alert-time">最后检测：' + lastCheck + ' · 请重新获取 Cookie 后在管理页更新</div>' +
+            '</div></div>';
+    }
+    if (otherFailed.length) {
+        const names = otherFailed.map(s => escHtml(NAMES[s.platform] || s.platform)).join('、');
+        const msgs = [...new Set(otherFailed.map(s => escHtml(s.message)))].join('；');
+        html += '<div class="cookie-alert" style="background:linear-gradient(135deg,#78350f,#92400e);border-color:#d97706">' +
+            '<span class="alert-icon">⚠️</span>' +
+            '<div class="alert-body">' +
+            '<div class="alert-title" style="color:#fde68a">数据采集异常</div>' +
+            '<div class="alert-platforms" style="color:#fbbf24">受影响：' + names + '</div>' +
+            '<div class="alert-time" style="color:#78350f">' + msgs + '</div>' +
+            '</div></div>';
+    }
+    container.innerHTML = html;
+}
+
+function renderPlatforms(platforms) {
+    const el = document.getElementById('platforms');
+    if (!platforms.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">📊</div><div class="msg">暂无平台数据</div><div class="hint">前往 ⚙️管理 添加凭证并刷新数据</div></div>';
+        return;
+    }
+    el.innerHTML = platforms.map(p => {
+        if (p.platform === 'tencent' && p.services) return renderTencentCard(p);
+        if (p.platform === 'volcano' && p.services) return renderVolcanoGroupCard(p);
+        if (p.platform === 'xiaomi') return renderXiaomiCard(p);
+        if (p.quotas) return renderCodingPlan(p);
+        if (p.remaining_pct !== undefined) return renderTokenPlan(p);
+        return renderFallback(p);
+    }).join('');
+}
+
+/* ====== 火山引擎大卡 ====== */
+function renderVolcanoGroupCard(p) {
+    const services = p.services || [];
+    const visibleServices = services.filter(s => {
+        if (s.balance_available !== undefined && s.balance_available <= 0 && !s.quotas && s.remaining_pct === undefined) return false;
+        return true;
+    });
+    let worstPct = 0, hasExhausted = false;
+    visibleServices.forEach(s => {
+        let usedPct = 0;
+        if (s.quotas) usedPct = Math.max(...Object.values(s.quotas).map(q => q.used_pct || 0));
+        else if (s.remaining_pct !== undefined) usedPct = 100 - s.remaining_pct;
+        if (usedPct >= 100) hasExhausted = true;
+        worstPct = Math.max(worstPct, usedPct);
+    });
+    const anyExhausted = visibleServices.some(s => {
+        if (s.remaining_pct !== undefined && s.remaining_pct <= 0) return true;
+        if (s.quotas) return Object.values(s.quotas).some(q => q.used_pct >= 100);
+        return false;
+    });
+    const badge = getStatusBadge(anyExhausted ? 100 : worstPct);
+
+    let servicesHtml = visibleServices.map(s => {
+        let subName = NAMES[s.platform] || s.platform;
+        if (s.platform === 'volcano' && s.balance_available !== undefined) subName = '火山方舟';
+        if (s.quotas) return renderSubCodingPlan(s, subName);
+        if (s.remaining_pct !== undefined) return renderSubTokenPlan(s, subName);
+        if (s.balance_available !== undefined) return renderVolcanoBalanceSub(s, subName);
+        return '<div class="sub-service"><div class="sub-header">' + subName + '</div><div style="padding:12px;color:#4b5563">数据格式异常</div></div>';
+    }).join('');
+
+    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">🌋 火山引擎</div><div class="subtitle">' + visibleServices.length + ' 个服务 · 北京区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>火山引擎 · ' + visibleServices.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+}
+
+/* 子服务: 火山余额 */
+function renderVolcanoBalanceSub(s, name) {
+    const available = s.balance_available || 0;
+    const cash = s.balance_cash || 0;
+    const credit = s.balance_credit || 0;
+    const frozen = s.balance_frozen || 0;
+    const arrears = s.balance_arrears || 0;
+    const isLow = available < 10;
+    const isExhausted = available <= 0 || arrears > 0;
+    const badge = isExhausted ? getStatusBadge(100) : isLow ? getStatusBadge(70) : getStatusBadge(30);
+    const c = getColorClass(isExhausted ? 100 : isLow ? 70 : 30);
+
+    let balanceHtml = '<div style="display:flex;align-items:baseline;gap:12px;padding:16px 24px">' +
+        '<span style="font-size:13px;color:#64748b">可用余额</span>' +
+        '<span style="font-size:28px;font-weight:800" class="' + c.text + '">¥' + available.toFixed(2) + '</span>' +
+        '<span style="font-size:12px;color:#94a3b8">现金 ¥' + cash.toFixed(2) +
+        (credit > 0 ? ' · 信控 ¥' + credit.toFixed(2) : '') +
+        (frozen > 0 ? ' · 冻结 ¥' + frozen.toFixed(2) : '') +
+        (arrears > 0 ? ' · <span style="color:#ef4444">欠费 ¥' + arrears.toFixed(2) + '</span>' : '') +
+        '</span></div>';
+
+    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">按量付费</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span>' + renderHideBtn(s.platform) + '</span></div>' + balanceHtml + '</div>';
+}
+
+/* ====== 腾讯大卡 ====== */
+function renderTencentCard(p) {
+    const services = p.services || [];
+    let worstPct = 0, hasExhausted = false;
+    services.forEach(s => {
+        let usedPct = 0;
+        if (s.quotas) usedPct = Math.max(...Object.values(s.quotas).map(q => q.used_pct || 0));
+        else if (s.remaining_pct !== undefined) usedPct = 100 - s.remaining_pct;
+        if (usedPct >= 100) hasExhausted = true;
+        worstPct = Math.max(worstPct, usedPct);
+    });
+    const anyExhausted = services.some(s => s.remaining_pct !== undefined && s.remaining_pct <= 0);
+    const badge = getStatusBadge(anyExhausted ? 100 : worstPct);
+
+    let servicesHtml = services.map(s => {
+        const subName = NAMES[s.platform] || s.platform;
+        if (s.quotas) return renderSubCodingPlan(s, subName);
+        if (s.remaining_pct !== undefined) return renderSubTokenPlan(s, subName);
+        return '<div class="sub-service"><div class="sub-header">' + subName + '</div><div style="padding:12px;color:#4b5563">数据格式异常</div></div>';
+    }).join('');
+
+    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">🔷 腾讯云</div><div class="subtitle">' + services.length + ' 个服务 · 广州区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>腾讯云 · ' + services.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+}
+
+/* 转义 HTML 特殊字符，防止 XSS */
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+/* 转义 JS 字符串（用于 onclick 等内联属性） */
+function escJs(s) {
+    return s.replace(/[\\'"]/g, '\\$&').replace(/</g, '\\x3c').replace(/>/g, '\\x3e');
+}
+
+/* 渲染隐藏按钮（未登录时禁用） */
+function renderHideBtn(subPlatform) {
+    const safeName = escJs(subPlatform);
+    if (isLoggedIn) {
+        return '<button class="sub-hide-btn" title="隐藏此服务" onclick="hideSubService(\'' + safeName + '\')">✕</button>';
+    } else {
+        return '<button class="sub-hide-btn disabled" title="请先登录管理后台" onclick="toast(\'请先登录管理后台\',\'error\')">✕</button>';
+    }
+}
+
+/* 子服务: Coding Plan */
+function renderSubCodingPlan(s, name) {
+    const q = s.quotas || {};
+    const quotaLabels = { '5h': {name:'每5小时',icon:'⚡'}, 'weekly': {name:'每周',icon:'📅'}, 'monthly': {name:'每订阅月',icon:'📆'} };
+    const anyExhausted = Object.values(q).some(v => v.used_pct >= 100);
+    const worstPct = Math.max(...Object.values(q).map(v => v.used_pct || 0));
+    const badge = anyExhausted ? getStatusBadge(100) : getStatusBadge(worstPct);
+
+    let recoveryTime = '';
+    for (const [key, info] of Object.entries(q)) {
+        if (info.used_pct >= 100 && info.refresh_at && (!recoveryTime || info.refresh_at < recoveryTime)) {
+            recoveryTime = info.refresh_at;
+        }
+    }
+
+    let quotaHtml = '';
+    for (const [key, info] of Object.entries(q)) {
+        const label = quotaLabels[key] || {name:key,icon:'📊'};
+        const pct = info.used_pct || 0;
+        const hasTotal = info.total > 0;
+        const remaining = hasTotal ? (info.total - Math.round(info.total * pct / 100)) : 0;
+        const c = getColorClass(pct);
+        const isBlocked = pct >= 100;
+        const totalHint = hasTotal ? '<span class="quota-total-hint">(总量 ' + info.total.toLocaleString() + ')</span>' : '';
+        const remainingText = hasTotal ? '剩余 ' + remaining.toLocaleString() : (100-pct).toFixed(1) + '% 可用';
+        quotaHtml += '<div class="quota-item"><div class="quota-top"><span class="quota-label">' + label.icon + ' ' + label.name + ' ' + totalHint + (isBlocked ? '<span style="color:#f87171;font-size:12px;font-weight:700">⛔ 已用尽</span>' : '') + '</span><span class="quota-remaining ' + c.text + '">' + remainingText + '</span></div><div class="progress-track"><div class="progress-fill ' + c.fill + '" style="width:' + Math.min(pct,100) + '%"></div></div><div class="quota-footer"><span class="quota-pct ' + c.text + '">' + pct.toFixed(1) + '% 已用</span><span class="quota-refresh">' + (isBlocked ? '🔄 ' + (info.refresh_at || '') + ' 恢复' : '🔄 ' + (info.refresh_at || '') + ' 刷新') + '</span></div></div>';
+    }
+
+    const overlayHtml = anyExhausted && recoveryTime
+        ? '<div class="sub-exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">' + recoveryTime + '</span><span class="countdown" data-recovery="' + recoveryTime + '">计算中...</span></div></div>'
+        : '';
+
+    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">' + (s.plan_type||'Lite') + ' · ' + (s.cost?s.cost+'元/月':'') + '</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span>' + renderHideBtn(s.platform) + '</span></div><div class="quota-body" style="position:relative">' + quotaHtml + overlayHtml + '</div></div>';
+}
+
+/* 子服务: 传统额度 */
+function renderSubTokenPlan(s, name) {
+    const usedPct = 100 - (s.remaining_pct || 0);
+    const c = getColorClass(usedPct);
+    const badge = getStatusBadge(usedPct);
+    const total = s.total_tokens || 0, used = s.input_tokens || 0, remaining = s.output_tokens || 0;
+    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">' + (s.plan_type||'') + ' · ' + (s.remaining_days?s.remaining_days+'天':'') + '</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span>' + renderHideBtn(s.platform) + '</span></div><div style="padding:16px 24px"><div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px"><span style="font-size:13px;color:#64748b">剩余</span><span style="font-size:28px;font-weight:800" class="' + c.text + '">' + fmt(remaining) + '</span><span style="font-size:16px;font-weight:600" class="' + c.text + '">(' + (s.remaining_pct||0).toFixed(1) + '%)</span><span style="font-size:12px;color:#4b5563">/ 套餐 ' + fmt(total) + '</span></div><div class="progress-track" style="margin-bottom:8px"><div class="progress-fill ' + c.fill + '" style="width:' + usedPct.toFixed(1) + '%"></div></div><div style="display:flex;justify-content:space-between;font-size:12px"><span class="' + c.text + '">已用 ' + usedPct.toFixed(1) + '%</span><span class="' + c.text + '">剩余 ' + (s.remaining_pct||0).toFixed(1) + '%</span></div></div></div>';
+}
+
+function renderCodingPlan(p) {
+    const q = p.quotas || {};
+    const labels = { '5h':{name:'每5小时',icon:'⚡'}, 'weekly':{name:'每周',icon:'📅'}, 'monthly':{name:'每订阅月',icon:'📆'} };
+    const isExhausted = Object.values(q).some(v => v.used_pct >= 100);
+    const badge = getStatusBadge(isExhausted ? 100 : 0);
+    let quotaHtml = '', recoveryTime = '';
+    for (const [key, info] of Object.entries(q)) {
+        const label = labels[key]||{name:key,icon:'📊'};
+        const pct = info.used_pct||0;
+        const hasTotal = info.total > 0;
+        const remaining = hasTotal ? (info.total - Math.round(info.total*pct/100)) : 0;
+        const c = getColorClass(pct), isBlocked = pct>=100;
+        const totalHint = hasTotal ? '<span class="quota-total-hint">(总量 ' + info.total.toLocaleString() + ')</span>' : '';
+        const remainingText = hasTotal ? '剩余 '+remaining.toLocaleString() : (100-pct).toFixed(1)+'% 可用';
+        quotaHtml += '<div class="quota-item"><div class="quota-top"><span class="quota-label">' + label.icon + ' ' + label.name + ' ' + totalHint + (isBlocked?'<span style="color:#f87171;font-size:12px;font-weight:700">⛔</span>':'') + '</span><span class="quota-remaining '+c.text+'">' + remainingText + '</span></div><div class="progress-track"><div class="progress-fill '+c.fill+'" style="width:'+Math.min(pct,100)+'%"></div></div><div class="quota-footer"><span class="quota-pct '+c.text+'">'+pct.toFixed(1)+'% 已用</span><span class="quota-refresh">🔄 '+(info.refresh_at||'')+' 刷新</span></div></div>';
+        if (info.used_pct>=100 && info.refresh_at && (!recoveryTime||info.refresh_at>recoveryTime)) recoveryTime=info.refresh_at;
+    }
+    return '<div class="plan-card"><div class="card-header"><div><div class="title">'+(NAMES[p.platform]||p.platform)+'</div><div class="subtitle">广州 · '+(p.plan_type||'Lite')+' 套餐</div></div><span class="status-badge '+badge.cls+'">'+badge.text+'</span></div><div class="plan-info"><span>💰 '+(p.cost?p.cost+'元/月':'-')+'</span><span>⏳ '+(p.remaining_days?p.remaining_days+'天剩余':'')+'</span><span>📅 '+(p.valid_from||'')+' 至 '+(p.valid_to||'')+'</span></div><div class="quota-body" style="position:relative">'+quotaHtml+(isExhausted&&recoveryTime?'<div class="exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">'+recoveryTime+'</span><span class="countdown" data-recovery="'+recoveryTime+'">计算中...</span></div></div>':'')+'</div><div class="card-footer"><span>'+(p.plan_type||'Coding Plan')+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div></div>';
+}
+
+function renderTokenPlan(p) {
+    const usedPct = 100-(p.remaining_pct||0), c=getColorClass(usedPct), badge=getStatusBadge(usedPct);
+    const total=p.total_tokens||0, used=p.input_tokens||0, remaining=p.output_tokens||0;
+    return '<div class="plan-card"><div class="card-header"><div><div class="title">'+(NAMES[p.platform]||p.platform)+'</div><div class="subtitle">广州 · '+(p.plan_type||'')+'</div></div><span class="status-badge '+badge.cls+'">'+badge.text+'</span></div><div class="plan-info"><span>💰 '+(p.cost?p.cost+'元/月':'-')+'</span><span>⏳ '+(p.remaining_days?p.remaining_days+'天剩余':'')+'</span><span>📅 '+(p.valid_from||'')+' 至 '+(p.valid_to||'')+'</span></div><div class="tokenplan-body"><div class="quota-hero"><div class="remaining-label">剩余额度</div><div class="remaining-value '+c.text+'">'+fmt(remaining)+'</div><div class="total-hint">套餐额度 '+fmt(total)+' · 已使用 '+fmt(used)+'</div></div><div class="progress-section"><div class="progress-track"><div class="progress-fill '+c.fill+'" style="width:'+usedPct.toFixed(1)+'%"></div></div><div class="progress-labels"><span class="'+c.text+'">已用 '+usedPct.toFixed(1)+'%</span><span class="'+c.text+'">剩余 '+(p.remaining_pct||0).toFixed(1)+'%</span></div></div><div class="detail-grid"><div class="detail-item"><div class="label">套餐额度</div><div class="val blue">'+fmt(total)+'</div></div><div class="detail-item"><div class="label">已使用</div><div class="val '+c.text+'">'+fmt(used)+'</div></div><div class="detail-item"><div class="label">剩余额度</div><div class="val '+c.text+'">'+fmt(remaining)+'</div></div><div class="detail-item"><div class="label">剩余比例</div><div class="val '+c.text+'">'+(p.remaining_pct||0).toFixed(1)+'%</div></div></div></div><div class="card-footer"><span>'+(p.plan_type||p.platform)+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div>'+(p.remaining_pct!==undefined&&p.remaining_pct<=0?'<div class="exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">'+(p.valid_to||'-')+'</span><span class="countdown" data-recovery="'+(p.valid_to||'')+'">计算中...</span></div></div>':'')+'</div>';
+}
+
+function renderFallback(p) {
+    if (p.platform === 'volcano' || p.platform === 'volcano_ark') return renderVolcanoCard(p);
+    if (p.platform === 'xiaomi') return renderXiaomiCard(p);
+    return '<div class="plan-card"><div class="card-header"><div><div class="title">'+(NAMES[p.platform]||p.platform)+'</div></div><span class="status-badge badge-available">'+(p.source||'unknown')+'</span></div><div class="tokenplan-body"><div class="detail-grid"><div class="detail-item"><div class="label">总量</div><div class="val">'+fmt(p.total_tokens)+'</div></div><div class="detail-item"><div class="label">输入</div><div class="val blue">'+fmt(p.input_tokens)+'</div></div><div class="detail-item"><div class="label">输出</div><div class="val green">'+fmt(p.output_tokens)+'</div></div><div class="detail-item"><div class="label">剩余</div><div class="val">'+(p.remaining||'-')+'</div></div></div></div><div class="card-footer"><span>'+(p.source||'unknown')+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div></div>';
+}
+
+function renderVolcanoCard(p) {
+    const available = p.balance_available || 0;
+    const cash = p.balance_cash || 0;
+    const credit = p.balance_credit || 0;
+    const frozen = p.balance_frozen || 0;
+    const arrears = p.balance_arrears || 0;
+    const planName = p.plan_name || '火山方舟';
+    const planType = p.plan_type || 'pay_as_you_go';
+    const isLow = available < 10;
+    const isExhausted = available <= 0 || arrears > 0;
+    const badge = isExhausted ? getStatusBadge(100) : isLow ? getStatusBadge(70) : getStatusBadge(30);
+    const c = getColorClass(isExhausted ? 100 : isLow ? 70 : 30);
+    const totalTokens = p.total_tokens || 0;
+    const inputTokens = p.input_tokens || 0;
+    const outputTokens = p.output_tokens || 0;
+    
+    let usageHtml = '';
+    if (totalTokens > 0) {
+        usageHtml = '<div class="detail-grid" style="margin-top:12px"><div class="detail-item"><div class="label">Token总量</div><div class="val">' + totalTokens.toLocaleString() + '</div></div><div class="detail-item"><div class="label">输入Token</div><div class="val blue">' + inputTokens.toLocaleString() + '</div></div><div class="detail-item"><div class="label">输出Token</div><div class="val green">' + outputTokens.toLocaleString() + '</div></div></div>';
+    }
+
+    return '<div class="plan-card" style="position:relative"><div class="card-header"><div><div class="title" style="font-size:22px">🌋 火山方舟</div><div class="subtitle">' + planName + ' · ' + (planType === 'pay_as_you_go' ? '按量付费' : planType) + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div class="tokenplan-body"><div style="text-align:center;padding:16px 0"><div style="font-size:12px;color:#64748b;margin-bottom:4px">可用余额</div><div style="font-size:36px;font-weight:800" class="' + c.text + '">¥' + available.toFixed(2) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:8px">现金 ¥' + cash.toFixed(2) + (credit > 0 ? ' · 信控 ¥' + credit.toFixed(2) : '') + (frozen > 0 ? ' · 冻结 ¥' + frozen.toFixed(2) : '') + (arrears > 0 ? ' · <span style="color:#ef4444">欠费 ¥' + arrears.toFixed(2) + '</span>' : '') + '</div></div>' + usageHtml + '</div><div class="card-footer"><span>火山方舟</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div>' + (isExhausted ? '<div class="exhausted-overlay"><div class="exhausted-text">余额不足</div><div class="exhausted-recovery"><span style="color:#fca5a5">请及时充值</span></div></div>' : '') + '</div>';
+}
+
+function renderXiaomiCard(p) {
+    const totalTokens = p.total_tokens || 0;
+    const planUsed = p.input_tokens || 0;
+    const remainingPct = p.remaining_pct;
+    const planPct = p.plan_pct || 0;
+    const remaining = p.remaining || '-';
+    const balance = p.balance || 0;
+    const giftBalance = p.gift_balance || 0;
+    const cashBalance = p.cash_balance || 0;
+    const frozenBalance = p.frozen_balance || 0;
+    const planName = p.plan_type || 'MiMo';
+    const planCode = p.plan_code || '';
+    const remainingDays = p.remaining_days || 0;
+    const validTo = p.valid_to || '';
+    const autoRenew = p.auto_renew || false;
+
+    const usedPct = remainingPct !== undefined ? (100 - remainingPct) : 0;
+    const c = getColorClass(usedPct);
+    const badge = getStatusBadge(usedPct);
+
+    let balanceHtml = '';
+    if (balance > 0) {
+        balanceHtml = '<div class="xiaomi-section">' +
+            '<div style="display:flex;align-items:baseline;gap:12px">' +
+            '<span style="font-size:13px;color:#64748b">账户余额</span>' +
+            '<span style="font-size:24px;font-weight:800;color:#f59e0b">¥' + parseFloat(balance).toFixed(2) + '</span>' +
+            '<span style="font-size:12px;color:#94a3b8">赠送 ¥' + parseFloat(giftBalance).toFixed(2) + ' · 现金 ¥' + parseFloat(cashBalance).toFixed(2) +
+            (frozenBalance > 0 ? ' · 冻结 ¥' + parseFloat(frozenBalance).toFixed(2) : '') +
+            '</span></div></div>';
+    }
+
+    let planHtml = '';
+    if (totalTokens > 0 && remainingPct !== undefined) {
+        planHtml = '<div class="xiaomi-section">' +
+            '<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px">' +
+            '<span style="font-size:13px;color:#64748b">剩余额度</span>' +
+            '<span style="font-size:28px;font-weight:800" class="' + c.text + '">' + fmt(totalTokens - planUsed) + '</span>' +
+            '<span style="font-size:16px;font-weight:600" class="' + c.text + '">(' + remainingPct.toFixed(1) + '%)</span>' +
+            '<span style="font-size:12px;color:#4b5563">/ 套餐 ' + fmt(totalTokens) + '</span>' +
+            '</div>' +
+            '<div class="progress-track" style="margin-bottom:8px"><div class="progress-fill ' + c.fill + '" style="width:' + usedPct.toFixed(1) + '%"></div></div>' +
+            '<div style="display:flex;justify-content:space-between;font-size:12px"><span class="' + c.text + '">已用 ' + usedPct.toFixed(1) + '%</span><span class="' + c.text + '">剩余 ' + remainingPct.toFixed(1) + '%</span></div>' +
+            '</div>';
+    }
+
+    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">🧸 MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + planHtml + balanceHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+}
+
+function renderScrapeInfo(scrape) {
+    if (!scrape.length) { document.getElementById('scrape-info').textContent = '暂无抓取数据'; return; }
+    document.getElementById('scrape-info').textContent = scrape.map(s =>
+        (NAMES[s.platform]||s.platform) + ': ' + (s.last_scraped ? new Date(s.last_scraped).toLocaleTimeString() : '从未')
+    ).join(' | ');
+}
+
+function updateCountdowns() {
+    document.querySelectorAll('.countdown[data-recovery]').forEach(el => {
+        const recovery = new Date(el.dataset.recovery);
+        if (isNaN(recovery)) { el.textContent = ''; return; }
+        const diff = recovery - new Date();
+        if (diff <= 0) { el.textContent = '已到刷新时间'; return; }
+        const d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000), m = Math.floor((diff % 3600000) / 60000);
+        el.textContent = '还剩 ' + d + '天 ' + h + '小时 ' + m + '分钟';
+    });
+}
+
+/* ====== 管理页 ====== */
+let platformConfigs = {};
+
+async function loadAdminData() {
+    if (!isLoggedIn) return;
+    try {
+        await Promise.all([loadCredentials(), loadSchedulerStatus(), loadRefreshLog(), loadPlatformConfigs(), loadSortWeights(), loadHiddenServices()]);
+    } catch(e) {
+        console.error('加载管理数据失败:', e);
+    }
+}
+
+async function loadPlatformConfigs() {
+    try {
+        const resp = await authFetch('/api/admin/platforms');
+        platformConfigs = await resp.json();
+        const select = document.getElementById('cred-platform');
+        if (select.options.length <= 1) {
+            for (const [key, cfg] of Object.entries(platformConfigs)) {
+                const opt = document.createElement('option');
+                opt.value = key; opt.textContent = cfg.name;
+                select.appendChild(opt);
+            }
+        }
+    } catch(e) { console.error(e); }
+}
+
+function onPlatformChange() {
+    const platform = document.getElementById('cred-platform').value;
+    const hint = document.getElementById('cred-hint');
+    const typeSelect = document.getElementById('cred-type');
+    const dataTextarea = document.getElementById('cred-data');
+    if (platform && platformConfigs[platform]) {
+        const cfg = platformConfigs[platform];
+        typeSelect.innerHTML = '';
+        cfg.credential_types.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t;
+            if (t === 'cookie') { opt.textContent = 'Cookie'; hint.textContent = cfg.cookie_hint; dataTextarea.placeholder = '粘贴完整的 Cookie 字符串...'; }
+            else { opt.textContent = 'API Key'; hint.textContent = cfg.api_key_hint; dataTextarea.placeholder = '粘贴 API Key 或 JSON...'; }
+            typeSelect.appendChild(opt);
+        });
+    }
+}
+
+async function loadSortWeights() {
+    try {
+        const [weightsResp, platformsResp] = await Promise.all([
+            authFetch('/api/admin/sort-weights').then(r=>r.json()),
+            authFetch('/api/admin/platforms').then(r=>r.json())
+        ]);
+        const container = document.getElementById('sort-weight-list');
+        if (!container) return;
+        const platforms = Object.keys(platformsResp);
+        container.innerHTML = platforms.map(p => {
+            const name = NAMES[p] || platformsResp[p].name || p;
+            const icon = platformsResp[p].icon || '';
+            const w = weightsResp[p] || 0;
+            return '<div style="display:flex;align-items:center;gap:10px">' +
+                '<span style="font-size:14px;min-width:100px">' + icon + ' ' + name + '</span>' +
+                '<input type="number" id="weight-' + p + '" value="' + w + '" min="0" max="999" ' +
+                'style="width:70px;padding:6px 10px;background:#0d1117;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;font-size:13px;text-align:center">' +
+                '<span style="font-size:11px;color:#4b5563">权重</span>' +
+                '</div>';
+        }).join('');
+    } catch(e) { console.error(e); }
+}
+
+async function saveSortWeights() {
+    try {
+        const platformsResp = await authFetch('/api/admin/platforms').then(r=>r.json());
+        const data = {};
+        for (const p of Object.keys(platformsResp)) {
+            const input = document.getElementById('weight-' + p);
+            if (input) data[p] = parseInt(input.value) || 0;
+        }
+        const resp = await authFetch('/api/admin/sort-weights', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await resp.json();
+        if (result.status === 'ok') {
+            toast('排序权重已保存，刷新页面后生效', 'success');
+            lastDataHash = '';
+            load();
+        } else {
+            toast(result.error || '保存失败', 'error');
+        }
+    } catch(e) { if (e.message !== '未授权') toast('请求失败: '+e.message, 'error'); }
+}
+
+async function hideSubService(subPlatform) {
+    if (!isLoggedIn) {
+        toast('请先登录管理后台', 'error');
+        return;
+    }
+    if (!confirm('确定隐藏 ' + (NAMES[subPlatform]||subPlatform) + '？可在管理页恢复。')) return;
+    try {
+        const resp = await authFetch('/api/admin/hidden-services/hide', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({sub_platform: subPlatform})
+        });
+        const result = await resp.json();
+        if (result.status === 'ok') {
+            toast('已隐藏 ' + (NAMES[subPlatform]||subPlatform), 'success');
+            lastDataHash = '';
+            load();
+        }
+    } catch(e) { if (e.message !== '未授权') toast('操作失败', 'error'); }
+}
+
+async function showSubService(subPlatform) {
+    try {
+        const resp = await authFetch('/api/admin/hidden-services/show', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({sub_platform: subPlatform})
+        });
+        const result = await resp.json();
+        if (result.status === 'ok') {
+            toast('已恢复 ' + (NAMES[subPlatform]||subPlatform), 'success');
+            lastDataHash = '';
+            load();
+            loadHiddenServices();
+        }
+    } catch(e) { if (e.message !== '未授权') toast('操作失败', 'error'); }
+}
+
+async function loadHiddenServices() {
+    try {
+        const resp = await authFetch('/api/admin/hidden-services').then(r=>r.json());
+        const container = document.getElementById('hidden-services-list');
+        if (!container) return;
+        const hidden = resp.hidden || [];
+        if (!hidden.length) {
+            container.innerHTML = '<span style="font-size:12px;color:#4b5563">暂无隐藏的服务</span>';
+            return;
+        }
+        container.innerHTML = hidden.map(s =>
+            '<div style="display:flex;align-items:center;gap:8px">' +
+            '<span style="font-size:13px;color:#94a3b8">' + escHtml(s) + '</span>' +
+            '<button class="btn btn-outline" style="padding:3px 10px;font-size:11px" onclick="showSubService(\'' + escJs(s) + '\')">恢复显示</button>' +
+            '</div>'
+        ).join('');
+    } catch(e) { console.error(e); }
+}
+
+async function loadCredentials() {
+    try {
+        const resp = await authFetch('/api/admin/credentials');
+        const creds = await resp.json();
+        const tbody = document.getElementById('cred-tbody');
+        if (!creds.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#4b5563">暂无凭证，请添加</td></tr>'; return; }
+        tbody.innerHTML = creds.map(c => '<tr><td><strong>'+escHtml(NAMES[c.platform]||c.platform)+'</strong></td><td><span class="cred-type-badge type-'+escHtml(c.credential_type)+'">'+(c.credential_type==='cookie'?'🍪 Cookie':'🔑 API Key')+'</span></td><td>'+escHtml(c.note||'-')+'</td><td>'+escHtml(c.updated_at||'-')+'</td><td><button class="btn btn-danger" onclick="deleteCredential(\''+escJs(c.platform)+'\')">删除</button></td></tr>').join('');
+    } catch(e) { console.error(e); }
+}
+
+async function saveCredential() {
+    const platform = document.getElementById('cred-platform').value;
+    const cred_type = document.getElementById('cred-type').value;
+    const cred_data = document.getElementById('cred-data').value.trim();
+    const note = document.getElementById('cred-note').value.trim();
+    if (!platform) { toast('请选择平台', 'error'); return; }
+    if (!cred_data) { toast('请输入凭证数据', 'error'); return; }
+    try {
+        const resp = await authFetch('/api/admin/credentials', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({platform, credential_type: cred_type, credential_data: cred_data, note}) });
+        const result = await resp.json();
+        if (result.status === 'ok') { toast(result.message, 'success'); document.getElementById('cred-data').value=''; document.getElementById('cred-note').value=''; loadCredentials(); }
+        else { toast(result.error || '保存失败', 'error'); }
+    } catch(e) { if (e.message !== '未授权') toast('请求失败: '+e.message, 'error'); }
+}
+
+async function deleteCredential(platform) {
+    if (!confirm('确定删除 '+(NAMES[platform]||platform)+' 的凭证？')) return;
+    try {
+        const resp = await authFetch('/api/admin/credentials/'+platform, {method:'DELETE'});
+        const result = await resp.json();
+        if (result.status==='ok') { toast('已删除', 'success'); loadCredentials(); }
+        else { toast(result.error||'删除失败', 'error'); }
+    } catch(e) { if (e.message !== '未授权') toast('请求失败', 'error'); }
+}
+
+async function loadSchedulerStatus() {
+    try {
+        const resp = await authFetch('/api/admin/scheduler');
+        const data = await resp.json();
+        const dot = document.getElementById('scheduler-dot'), label = document.getElementById('scheduler-label');
+        if (data.running) { dot.className='status-dot-admin dot-running'; label.textContent='运行中'; label.style.color='#4ade80'; }
+        else { dot.className='status-dot-admin dot-stopped'; label.textContent='已停止'; label.style.color='#6b7280'; }
+        const intSec = data.interval || 300;
+        const intMin = Math.floor(intSec/60), intRem = intSec%60;
+        document.getElementById('scheduler-interval-label').textContent = '间隔: '+intMin+'分'+intRem+'秒';
+        document.getElementById('interval-input').value = data.interval;
+    } catch(e) { console.error(e); }
+}
+
+async function schedulerAction(action) {
+    try {
+        const resp = await authFetch('/api/admin/scheduler', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action})});
+        const result = await resp.json();
+        toast(result.message, result.status==='ok'?'success':'info');
+        loadSchedulerStatus();
+    } catch(e) { if (e.message !== '未授权') toast('请求失败', 'error'); }
+}
+
+async function updateInterval() {
+    const interval = parseInt(document.getElementById('interval-input').value);
+    if (interval < 60) { toast('间隔最少60秒', 'error'); return; }
+    try {
+        await authFetch('/api/admin/scheduler', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({interval})});
+        toast('间隔已更新', 'success'); loadSchedulerStatus();
+    } catch(e) { if (e.message !== '未授权') toast('请求失败', 'error'); }
+}
+
+async function refreshNow() {
+    toast('正在刷新所有平台...', 'info');
+    try {
+        const resp = await authFetch('/api/admin/refresh', {method:'POST'});
+        const result = await resp.json();
+        if (result.status==='ok') {
+            const results = result.results||{};
+            const summary = Object.entries(results).map(([k,v])=>(NAMES[k]||k)+': '+(v.status==='success'?'✅':'❌ '+(v.error||''))).join('\n');
+            toast('刷新完成:\n'+summary, 'success');
+            loadRefreshLog(); load();
+        }
+    } catch(e) { if (e.message !== '未授权') toast('刷新失败: '+e.message, 'error'); }
+}
+
+async function loadRefreshLog() {
+    try {
+        const resp = await authFetch('/api/admin/refresh-log?limit=20');
+        const logs = await resp.json();
+        const tbody = document.getElementById('log-tbody');
+        if (!logs.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#4b5563">暂无刷新记录</td></tr>'; return; }
+        tbody.innerHTML = logs.map(l => '<tr><td>'+escHtml(l.timestamp_fmt||'-')+'</td><td>'+escHtml(NAMES[l.platform]||l.platform)+'</td><td class="log-'+escHtml(l.status)+'">'+(l.status==='success'?'✅ 成功':l.status==='failed'?'❌ 失败':'⚠️ 错误')+'</td><td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(l.message||'')+'">'+escHtml(l.message||'-')+'</td><td>'+(l.duration_ms?l.duration_ms+'ms':'-')+'</td></tr>').join('');
+    } catch(e) { console.error(e); }
+}
+
+/* ====== 初始化 ====== */
+document.getElementById('version-tag').textContent = APP_VERSION;
+
+// 启动时检查认证状态
+checkAuthStatus().then(() => {
+    // 根据登录状态渲染监控页的隐藏按钮
+    lastDataHash = ''; // 强制重新渲染
+});
+
+load();
+setInterval(()=>{
+    cd--;
+    document.getElementById('cd').textContent=cd;
+    if(cd<=0) {
+        const timing = checkRefreshTiming();
+        if (timing === 'skip') {
+            cd = 60;
+            return;
+        }
+        lastDataHash = '';
+        load();
+    }
+}, 1000);
+setInterval(updateCountdowns, 60000);
+
+// 定期检查认证状态（5分钟），防止 token 过期后 UI 不一致
+setInterval(async () => {
+    const status = await checkAuthStatus();
+    if (!status.authenticated && document.getElementById('page-admin').classList.contains('active')) {
+        renderAuthArea();
+    }
+}, 300000);
+</script>
+</body>
+</html>

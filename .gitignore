@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Database
+*.db
+
+# Browser data & cookies
+browser_data/
+cookies/
+cookies_extracted.json
+cookies_new.json
+
+# Debug / temp scripts
+debug_html/
+screenshots/
+check_*.py
+confirm_*.py
+clean_*.py
+analyze_api.py
+api_capture.json
+click_create_*.py
+create_aksk*.py
+explore_*.py
+fetch_cookies_*.py
+intercept_*.py
+make_shortcut.py
+nav_dev.py
+save_*.py
+screenshot_*.py
+test_*.py
+upgrade_cred.py
+volcano_*.png
+volcano_api_capture.json
+*.log
+
+# Build artifacts
+OK/
+
+# Internal / workbuddy
+.workbuddy/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Secrets
+internal_key.txt

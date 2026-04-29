@@ -1,0 +1,7 @@
+fastapi>=0.100.0
+uvicorn>=0.23.0
+httpx>=0.25.0
+volcengine-python-sdk>=1.0.0
+# Playwright 仅本地 Windows 需要（CDP 自动获取 Cookie），服务器无需安装
+# 本地使用时取消注释:
+# playwright>=1.40.0
