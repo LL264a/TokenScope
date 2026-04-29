@@ -3,7 +3,7 @@
 from pathlib import Path
 
 # ============ 版本 ============
-APP_VERSION = 'v1.4.0'
+APP_VERSION = 'v1.5.0'
 
 # ============ 路径 ============
 PROJECT_DIR = Path(__file__).parent
@@ -63,7 +63,7 @@ PLATFORMS = {
             },
         ],
         "credential_types": ["cookie", "api_key"],
-        "cookie_hint": '从浏览器 DevTools 复制 Cookie（需先登录 console.volcengine.com）→ Cookie中需包含 csrfToken',
+        "cookie_hint": '支持3种格式：\n1. Netscape Cookie文件（Get cookies.txt LOCALLY导出）\n2. key=value; key=value 字符串\n3. JSON: {"cookie":"完整Cookie"}\n\nCookie中需包含 csrfToken',
         "api_key_hint": 'JSON格式: {"ak":"AccessKey","sk":"SecretKey"}  从火山引擎控制台 → 安全认证获取（仅查余额，不含Coding Plan配额）\n\n💡 同时配Cookie和AK/SK: {"cookie":"完整Cookie","ak":"AK","sk":"SK"}',
     },
     "xiaomi": {

@@ -44,6 +44,10 @@ class VolcanoCollector(BaseCollector):
         sk = cred.get("sk", "")
         cookie = cred.get("cookie", "")
 
+        # 支持 Netscape Cookie 文件格式（自动检测并转换）
+        if cookie and cookie.strip().startswith("#"):
+            cookie = self._parse_netscape_cookies(cookie)
+
         results = []
 
         # 1. Coding Plan: Cookie + CSRF 方式
@@ -263,6 +267,25 @@ class VolcanoCollector(BaseCollector):
             if part.startswith(f"{key}="):
                 return part.split("=", 1)[1]
         return ""
+
+    @staticmethod
+    def _parse_netscape_cookies(text: str) -> str:
+        """将 Netscape Cookie 文件格式转换为 key=value; key=value 字符串
+        
+        Netscape 格式每行：domain \t include_subdomains \t path \t secure \t expiry \t name \t value
+        """
+        pairs = []
+        for line in text.strip().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 7:
+                name = parts[5].strip()
+                value = parts[6].strip()
+                if name:
+                    pairs.append(f"{name}={value}")
+        return "; ".join(pairs)
 
     async def _collect_with_aksdk(self, ak: str, sk: str) -> list[dict]:
         """用 AK/SK 通过官方 SDK 查询余额（保留旧逻辑）"""
