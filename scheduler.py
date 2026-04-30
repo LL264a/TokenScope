@@ -34,8 +34,15 @@ class Scheduler:
         self._refresh_callback = callback
 
     async def _loop(self):
-        """定时刷新循环"""
+        """定时刷新循环，每次循环前从数据库读取最新间隔"""
+        from db import get_setting
         while self._running:
+            try:
+                # 每次循环前读取最新间隔（支持运行时动态调整）
+                db_interval = int(get_setting("refresh_interval", str(self._interval)))
+                self._interval = max(MIN_REFRESH_INTERVAL, min(MAX_REFRESH_INTERVAL, db_interval))
+            except (ValueError, TypeError):
+                pass
             try:
                 if self._refresh_callback:
                     await self._refresh_callback()

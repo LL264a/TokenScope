@@ -265,13 +265,13 @@ def get_stats():
                 "no_data": True,
             }
 
-    # 排序：实时排序（按数据活跃度）或权重排序
+    # 排序：实时排序（按实际用量）或权重排序
     sort_mode = get_setting("sort_mode", "weight")
     if sort_mode == "realtime":
-        # 实时排序：有数据的平台优先，按最后更新时间降序
+        # 实时排序：有实际用量的平台优先，按 total_tokens 降序
         sorted_platforms = sorted(all_platforms.values(), key=lambda x: (
-            0 if x.get("no_data") else 1,
-            x.get("last_updated", "") or ""
+            0 if x.get("no_data") else 1,       # 有数据的优先
+            int(x.get("total_tokens", 0)),       # tokens多的优先
         ), reverse=True)
     else:
         # 权重排序

@@ -1,10 +1,10 @@
 <?php
 /**
- * Token Monitor v1.6.1 - 配置文件
+ * Token Monitor v1.6.2 - 配置文件
  */
 
 // ============ 版本 ============
-define('APP_VERSION', 'v1.6.1');
+define('APP_VERSION', 'v1.6.2');
 
 // ============ 路径 ============
 define('TM_ROOT', __DIR__);
