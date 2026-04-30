@@ -158,6 +158,19 @@ def get_stats():
         elif volcano_group == "volcano":
             volcano_services.append(p)
         else:
+            # 从 raw_json 中提取 DeepSeek 模型用量等嵌套字段
+            if p.get("platform") == "deepseek":
+                raw_json = p.get("raw_json", "")
+                if raw_json:
+                    try:
+                        raw_data = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+                        if isinstance(raw_data, dict):
+                            for extra_key in ("model_usages", "monthly_cost", "cost_total"):
+                                if extra_key in raw_data and extra_key not in p:
+                                    p[extra_key] = raw_data[extra_key]
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
             entry = {
                 "platform": p["platform"],
                 "total_tokens": p.get("total_tokens", 0),
@@ -176,7 +189,8 @@ def get_stats():
                          "balance", "gift_balance", "cash_balance", "frozen_balance",
                          "cache_tokens", "tpm", "rpm", "current_month_cost",
                          "month_used", "month_limit", "month_pct", "plan_pct",
-                         "comp_total", "comp_used", "comp_pct", "auto_renew"):
+                         "comp_total", "comp_used", "comp_pct", "auto_renew",
+                         "model_usages", "monthly_cost", "cost_total"):
                 if key in p:
                     entry[key] = p[key]
             all_platforms[p["platform"]] = entry
