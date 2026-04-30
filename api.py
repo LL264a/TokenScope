@@ -265,13 +265,11 @@ def get_stats():
                 "no_data": True,
             }
 
-    # 排序权重
-    weights = get_sort_weights()
-    for platform_key in all_platforms:
-        all_platforms[platform_key]["sort_weight"] = weights.get(platform_key, 0)
-
-    # 按权重降序排列（权重高的排前面）
-    sorted_platforms = sorted(all_platforms.values(), key=lambda x: x.get("sort_weight", 0), reverse=True)
+    # 实时排序：有数据的平台优先，按最后更新时间降序
+    sorted_platforms = sorted(all_platforms.values(), key=lambda x: (
+        0 if x.get("no_data") else 1,                           # 有数据的优先
+        x.get("last_updated", "") or ""                         # 按更新时间降序
+    ), reverse=True)
 
     return {
         "platforms": sorted_platforms,
