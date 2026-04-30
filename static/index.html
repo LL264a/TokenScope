@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Token 监控面板</title>
-    <script>/* 版本号 */ const APP_VERSION = 'v1.6.0';</script>
+    <script>/* 版本号 */ const APP_VERSION = 'v1.6.1';</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -339,6 +339,10 @@
         @media (max-width: 768px) {
             .admin-grid { grid-template-columns: 1fr; }
         }
+        /* 开关样式 */
+        .toggle-switch input:checked + .toggle-slider { background: #34d399; }
+        .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+        .toggle-slider::before { content:""; position:absolute; width:18px; height:18px; left:2px; bottom:2px; background:#e2e8f0; border-radius:50%; transition:0.3s; }
     </style>
 </head>
 <body>
@@ -385,7 +389,7 @@
                         </div>
                         <div class="interval-control" style="margin-bottom:12px">
                             <label style="font-size:12px;color:#94a3b8">间隔(秒):</label>
-                            <input type="number" id="interval-input" value="300" min="60" step="60">
+                            <input type="number" id="interval-input" value="60" min="10" max="120" step="5">
                             <button class="btn btn-outline" onclick="updateInterval()">应用</button>
                         </div>
                         <div class="btn-row">
@@ -424,7 +428,15 @@
                     <!-- 平台排序 -->
                     <div class="admin-card">
                         <h3>🔢 平台排序</h3>
-                        <div style="font-size:12px;color:#64748b;margin-bottom:12px">权重越高越靠前，如 99 排第一，98 排第二</div>
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 12px;background:rgba(15,23,42,0.5);border-radius:8px">
+                            <span style="font-size:13px;color:#94a3b8">⚡ 实时排序</span>
+                            <label class="toggle-switch" style="position:relative;display:inline-block;width:40px;height:22px">
+                                <input type="checkbox" id="sort-mode-toggle" onchange="toggleSortMode()" style="opacity:0;width:0;height:0">
+                                <span class="toggle-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#1e293b;border-radius:11px;transition:0.3s"></span>
+                            </label>
+                            <span id="sort-mode-label" style="font-size:12px;color:#64748b">权重排序</span>
+                        </div>
+                        <div style="font-size:12px;color:#64748b;margin-bottom:12px">开启后按数据活跃度排序，关闭后按下方权重排序</div>
                         <div id="sort-weight-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
                         <button class="btn btn-primary" onclick="saveSortWeights()">💾 保存排序</button>
                     </div>
@@ -1192,7 +1204,7 @@ let platformConfigs = {};
 async function loadAdminData() {
     if (!isLoggedIn) return;
     try {
-        await Promise.all([loadCredentials(), loadSchedulerStatus(), loadRefreshLog(), loadPlatformConfigs(), loadSortWeights(), loadHiddenServices()]);
+        await Promise.all([loadCredentials(), loadSchedulerStatus(), loadRefreshLog(), loadPlatformConfigs(), loadSortWeights(), loadSortMode(), loadHiddenServices()]);
     } catch(e) {
         console.error('加载管理数据失败:', e);
     }
@@ -1274,6 +1286,43 @@ async function saveSortWeights() {
             load();
         } else {
             toast(result.error || '保存失败', 'error');
+        }
+    } catch(e) { if (e.message !== '未授权') toast('请求失败: '+e.message, 'error'); }
+}
+
+async function loadSortMode() {
+    try {
+        const resp = await authFetch('/api/admin/sort-mode');
+        const data = await resp.json();
+        const toggle = document.getElementById('sort-mode-toggle');
+        const label = document.getElementById('sort-mode-label');
+        if (toggle && label) {
+            const isRealtime = data.mode === 'realtime';
+            toggle.checked = isRealtime;
+            label.textContent = isRealtime ? '实时排序' : '权重排序';
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function toggleSortMode() {
+    const toggle = document.getElementById('sort-mode-toggle');
+    const label = document.getElementById('sort-mode-label');
+    const mode = toggle.checked ? 'realtime' : 'weight';
+    try {
+        const resp = await authFetch('/api/admin/sort-mode', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({mode})
+        });
+        const result = await resp.json();
+        if (result.status === 'ok') {
+            label.textContent = mode === 'realtime' ? '实时排序' : '权重排序';
+            toast(result.message, 'success');
+            lastDataHash = '';
+            load();
+        } else {
+            toast(result.error || '保存失败', 'error');
+            toggle.checked = !toggle.checked;
         }
     } catch(e) { if (e.message !== '未授权') toast('请求失败: '+e.message, 'error'); }
 }
@@ -1500,7 +1549,7 @@ async function schedulerAction(action) {
 
 async function updateInterval() {
     const interval = parseInt(document.getElementById('interval-input').value);
-    if (interval < 60) { toast('间隔最少60秒', 'error'); return; }
+    if (interval < 10 || interval > 120) { toast('间隔范围10~120秒', 'error'); return; }
     try {
         await authFetch('/api/admin/scheduler', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({interval})});
         toast('间隔已更新', 'success'); loadSchedulerStatus();

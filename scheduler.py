@@ -4,7 +4,7 @@ import asyncio
 import threading
 import time
 from db import get_setting, set_setting, add_refresh_log
-from config import DEFAULT_REFRESH_INTERVAL, MIN_REFRESH_INTERVAL
+from config import DEFAULT_REFRESH_INTERVAL, MIN_REFRESH_INTERVAL, MAX_REFRESH_INTERVAL
 
 
 class Scheduler:
@@ -22,7 +22,7 @@ class Scheduler:
 
     @interval.setter
     def interval(self, val):
-        self._interval = max(MIN_REFRESH_INTERVAL, int(val))
+        self._interval = max(MIN_REFRESH_INTERVAL, min(MAX_REFRESH_INTERVAL, int(val)))
         set_setting("refresh_interval", str(self._interval))
 
     @property
@@ -73,7 +73,7 @@ class Scheduler:
         return {
             "running": self._running,
             "interval": self._interval,
-            "interval_label": f"{self._interval // 60}分{self._interval % 60}秒",
+            "interval_label": f"{self._interval}秒",
         }
 
 

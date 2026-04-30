@@ -3,7 +3,7 @@
 from pathlib import Path
 
 # ============ 版本 ============
-APP_VERSION = 'v1.6.0'
+APP_VERSION = 'v1.6.1'
 
 # ============ 路径 ============
 PROJECT_DIR = Path(__file__).parent
@@ -111,8 +111,9 @@ VOLCANO_SUB_TO_PARENT = {
 }
 
 # ============ 调度器默认值 ============
-DEFAULT_REFRESH_INTERVAL = 300  # 5分钟
-MIN_REFRESH_INTERVAL = 60      # 最少1分钟
+DEFAULT_REFRESH_INTERVAL = 60   # 默认60秒
+MIN_REFRESH_INTERVAL = 10       # 最少10秒
+MAX_REFRESH_INTERVAL = 120      # 最多120秒
 
 # ============ UI 颜色规则 ============
 # 已用 0-50% 绿, 50-80% 黄, 80-100% 红

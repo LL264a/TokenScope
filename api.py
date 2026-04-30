@@ -265,11 +265,20 @@ def get_stats():
                 "no_data": True,
             }
 
-    # 实时排序：有数据的平台优先，按最后更新时间降序
-    sorted_platforms = sorted(all_platforms.values(), key=lambda x: (
-        0 if x.get("no_data") else 1,                           # 有数据的优先
-        x.get("last_updated", "") or ""                         # 按更新时间降序
-    ), reverse=True)
+    # 排序：实时排序（按数据活跃度）或权重排序
+    sort_mode = get_setting("sort_mode", "weight")
+    if sort_mode == "realtime":
+        # 实时排序：有数据的平台优先，按最后更新时间降序
+        sorted_platforms = sorted(all_platforms.values(), key=lambda x: (
+            0 if x.get("no_data") else 1,
+            x.get("last_updated", "") or ""
+        ), reverse=True)
+    else:
+        # 权重排序
+        weights = get_sort_weights()
+        for platform_key in all_platforms:
+            all_platforms[platform_key]["sort_weight"] = weights.get(platform_key, 0)
+        sorted_platforms = sorted(all_platforms.values(), key=lambda x: x.get("sort_weight", 0), reverse=True)
 
     return {
         "platforms": sorted_platforms,
@@ -449,6 +458,23 @@ def admin_scheduler_control(data: dict, _token: str = Depends(require_auth)):
 @router.get("/api/admin/platforms")
 def admin_platforms(_token: str = Depends(require_auth)):
     return PLATFORMS
+
+
+@router.get("/api/admin/sort-mode")
+def admin_get_sort_mode(_token: str = Depends(require_auth)):
+    """获取排序模式：realtime=实时排序, weight=权重排序"""
+    mode = get_setting("sort_mode", "weight")
+    return {"mode": mode}
+
+
+@router.post("/api/admin/sort-mode")
+def admin_set_sort_mode(data: dict, _token: str = Depends(require_auth)):
+    """设置排序模式：realtime 或 weight"""
+    mode = data.get("mode", "weight")
+    if mode not in ("realtime", "weight"):
+        return {"error": "无效的排序模式"}
+    set_setting("sort_mode", mode)
+    return {"status": "ok", "message": f"排序模式已切换为 {'实时' if mode == 'realtime' else '权重'}排序"}
 
 
 @router.get("/api/admin/sort-weights")
