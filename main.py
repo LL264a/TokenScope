@@ -141,4 +141,4 @@ if __name__ == "__main__":
     print("  Dashboard: http://localhost:8765")
     if docs_enabled:
         print("  API docs:  http://localhost:8765/docs")
-    uvicorn.run("main:app", host="0.0.0.0", port=8765, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8765, reload=False)

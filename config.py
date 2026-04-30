@@ -3,7 +3,7 @@
 from pathlib import Path
 
 # ============ 版本 ============
-APP_VERSION = 'v1.5.2'
+APP_VERSION = 'v1.6.0'
 
 # ============ 路径 ============
 PROJECT_DIR = Path(__file__).parent
@@ -79,6 +79,21 @@ PLATFORMS = {
         ],
         "credential_types": ["cookie"],
         "cookie_hint": "从浏览器 DevTools 复制 Cookie（需先登录 platform.xiaomimimo.com）",
+    },
+    "deepseek": {
+        "name": "DeepSeek",
+        "icon": "🔮",
+        "services": [
+            {
+                "key": "deepseek",
+                "name": "DeepSeek 用量",
+                "url": "https://platform.deepseek.com/usage",
+                "plan_type": "deepseek",
+            },
+        ],
+        "credential_types": ["api_key", "cookie"],
+        "api_key_hint": '粘贴 DeepSeek API Key（从 https://platform.deepseek.com/api_keys 获取）\n显示：账户余额（¥）',
+        "cookie_hint": '粘贴 Token（登录 https://platform.deepseek.com 后，按F12→Application→LocalStorage→userToken→复制value值）\n显示：按模型Token用量明细 + 月消费金额\n\n也可同时提供：{"api_key":"sk-xxx","token":"xxx"} 同时显示余额和用量',
     },
 }
 

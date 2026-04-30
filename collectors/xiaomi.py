@@ -25,6 +25,11 @@ class XiaomiCollector(BaseCollector):
     async def collect(self, cookie_str: str) -> list[dict]:
         import httpx
 
+        # 支持 Netscape Cookie 文件格式（自动检测并转换）
+        netscape_parsed = self._parse_netscape_cookies(cookie_str)
+        if netscape_parsed:
+            cookie_str = netscape_parsed
+
         # cookie_str 可能是 JSON 或纯 Cookie
         try:
             cred = json.loads(cookie_str)
@@ -297,3 +302,29 @@ class XiaomiCollector(BaseCollector):
         except Exception as e:
             logger.warning(f"[xiaomi] balance query failed: {e}")
             return None
+
+    @staticmethod
+    def _parse_netscape_cookies(text: str) -> Optional[str]:
+        """解析 Netscape Cookie 文件格式，返回 key=value; key=value 字符串
+
+        Netscape 格式每行: domain\\tinclude_subdomains\\tpath\\tsecure\\texpiry\\tname\\tvalue
+        """
+        lines = text.strip().splitlines()
+        pairs = []
+        is_netscape = False
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                if "curl" in line.lower() or "netscape" in line.lower() or "generated" in line.lower():
+                    is_netscape = True
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 7:
+                is_netscape = True
+                name = parts[5].strip()
+                value = parts[6].strip()
+                if name:
+                    pairs.append(f"{name}={value}")
+        if is_netscape and pairs:
+            return "; ".join(pairs)
+        return None

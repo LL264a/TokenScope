@@ -509,6 +509,13 @@ async def _do_refresh_all() -> dict:
                 continue
             cookie_str = json.dumps(cred_data, ensure_ascii=False)
         elif platform in ("tencent", "xiaomi"):
+            # cred_data 可能是 {"raw": "..."}（纯文本/Netscape Cookie）或 {"cookie": "..."}（JSON格式）
+            if "raw" in cred_data:
+                cookie_str = cred_data["raw"]
+            else:
+                cookie_str = json.dumps(cred_data, ensure_ascii=False)
+        elif platform == "deepseek":
+            # DeepSeek：凭证可能含 api_key 和/或 token
             cookie_str = json.dumps(cred_data, ensure_ascii=False)
         else:
             cookie_str = cred_data.get("cookie", cred_data.get("raw", ""))
@@ -575,9 +582,19 @@ async def _do_refresh_platform(platform: str) -> dict:
             return {platform: {"status": "error", "error": "无凭证"}}
         cookie_str = json.dumps(cred_data, ensure_ascii=False)
     elif platform in ("tencent", "xiaomi"):
+        # cred_data 可能是 {"raw": "..."}（纯文本/Netscape Cookie）或 {"cookie": "..."}（JSON格式）
+        if "raw" in cred_data:
+            cookie_str = cred_data["raw"]
+        else:
+            cookie_str = json.dumps(cred_data, ensure_ascii=False)
+    elif platform == "deepseek":
         cookie_str = json.dumps(cred_data, ensure_ascii=False)
     else:
         cookie_str = cred_data.get("cookie", cred_data.get("raw", ""))
+
+    # 调试日志
+    import logging as _lg
+    _lg.getLogger("refresh").warning(f"[DEBUG] platform={platform} cred_data_keys={list(cred_data.keys())} cookie_str_len={len(cookie_str)} cookie_str_start={repr(cookie_str[:80])}")
 
     collector = REGISTRY.get(platform)
     if not collector:
@@ -639,6 +656,12 @@ async def _do_check_credential(platform: str) -> dict:
             return {"status": "error", "error": "无凭证", "platform": platform}
         cookie_str = json.dumps(cred_data, ensure_ascii=False)
     elif platform in ("tencent", "xiaomi"):
+        # cred_data 可能是 {"raw": "..."}（纯文本/Netscape Cookie）或 {"cookie": "..."}（JSON格式）
+        if "raw" in cred_data:
+            cookie_str = cred_data["raw"]
+        else:
+            cookie_str = json.dumps(cred_data, ensure_ascii=False)
+    elif platform == "deepseek":
         cookie_str = json.dumps(cred_data, ensure_ascii=False)
     else:
         cookie_str = cred_data.get("cookie", cred_data.get("raw", ""))
