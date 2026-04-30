@@ -1,6 +1,6 @@
 # TokenScope 🔭
 
-多平台 AI Token 配额实时监控面板 v1.6.2
+多平台 AI Token 配额实时监控面板 v1.6.3
 
 实时追踪**腾讯云、火山引擎、小米、DeepSeek** 等平台的 Token 消耗与余额，让你对 AI 资源用量一目了然。
 

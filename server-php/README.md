@@ -1,4 +1,4 @@
-# Token Monitor v1.6.2 PHP 版 - 部署指南
+# Token Monitor v1.6.3 PHP 版 - 部署指南
 
 ## 🎯 一句话
 

@@ -284,6 +284,7 @@ def get_stats():
         "platforms": sorted_platforms,
         "last_updated": datetime.now().isoformat(),
         "version": APP_VERSION,
+        "refresh_interval": int(get_setting("refresh_interval", "60")),
     }
 
 
@@ -438,6 +439,7 @@ def admin_scheduler_control(data: dict, _token: str = Depends(require_auth)):
 
     if interval:
         scheduler.interval = interval
+        return {"status": "ok", "message": f"间隔已设为{scheduler.interval}秒"}
 
     if action == "start":
         if scheduler.start():

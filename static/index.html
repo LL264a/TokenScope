@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <title>Token 监控面板</title>
-    <script>/* 版本号 */ const APP_VERSION = 'v1.6.2';</script>
+    <script>/* 版本号 */ const APP_VERSION = 'v1.6.3';</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -816,18 +816,6 @@ function fmt(n) {
 }
 
 /* ====== 监控页 ====== */
-function checkRefreshTiming() {
-    const now = new Date();
-    const countdownEls = document.querySelectorAll('.countdown[data-recovery]');
-    let hasPendingRecovery = false;
-    for (const el of countdownEls) {
-        const recovery = new Date(el.dataset.recovery);
-        if (isNaN(recovery)) continue;
-        if (recovery <= now) return 'recover';
-        hasPendingRecovery = true;
-    }
-    return hasPendingRecovery ? 'skip' : 'refresh';
-}
 
 async function load() {
     try {
@@ -835,18 +823,22 @@ async function load() {
             fetch('/api/stats').then(r=>r.json()),
             fetch('/api/cookie-status').then(r=>r.json()).catch(()=>[]),
         ]);
-        const dataHash = JSON.stringify(stats.platforms || []);
         // 从 API 同步版本号
         if (stats.version && stats.version !== APP_VERSION) {
             document.getElementById('version-tag').textContent = stats.version;
         }
-        if (dataHash !== lastDataHash) {
-            lastDataHash = dataHash;
-            renderPlatforms(stats.platforms || []);
-        }
+        renderPlatforms(stats.platforms || []);
         renderCookieAlert(cookieSt);
         document.getElementById('status').textContent = '已连接';
-        cd = 30;
+        lastRefreshTime = Date.now(); // 重置刷新计时
+        // 从 stats 同步 refresh_interval（保证和设定完全一致）
+        if (stats.refresh_interval) {
+            window._refreshInterval = Math.max(10, stats.refresh_interval);
+        }
+        // 如果在管理页，也刷新日志
+        if (document.getElementById('page-admin').classList.contains('active')) {
+            loadRefreshLog();
+        }
     } catch(e) {
         document.getElementById('status').textContent = '连接失败';
     }
@@ -1592,19 +1584,22 @@ checkAuthStatus().then(() => {
 });
 
 load();
-setInterval(()=>{
-    cd--;
-    document.getElementById('cd').textContent=cd;
-    if(cd<=0) {
-        const timing = checkRefreshTiming();
-        if (timing === 'skip') {
-            cd = 60;
-            return;
+// 自动刷新：每1秒检查一次，距离上次刷新超过间隔秒数就刷新
+let lastRefreshTime = Date.now();
+window._refreshInterval = 60;
+;(async function startAutoRefresh() {
+    setInterval(async () => {
+        const elapsed = Math.floor((Date.now() - lastRefreshTime) / 1000);
+        const iv = window._refreshInterval || 60;
+        const remain = Math.max(0, iv - elapsed);
+        document.getElementById('cd').textContent = remain;
+        
+        if (remain <= 0) {
+            await load();
+            lastRefreshTime = Date.now();
         }
-        lastDataHash = '';
-        load();
-    }
-}, 1000);
+    }, 1000);
+})();
 setInterval(updateCountdowns, 60000);
 
 // 定期检查认证状态（5分钟），防止 token 过期后 UI 不一致
