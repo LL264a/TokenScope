@@ -1,13 +1,14 @@
 # TokenScope 🔭
 
-多平台 AI Token 配额实时监控面板
+多平台 AI Token 配额实时监控面板 v1.6.0
 
-实时追踪腾讯云、火山引擎、小米等平台的 Token 消耗与余额，让你对 AI 资源用量一目了然。
+实时追踪**腾讯云、火山引擎、小米、DeepSeek** 等平台的 Token 消耗与余额，让你对 AI 资源用量一目了然。
 
 ## ✨ 特性
 
-- 🔭 **多平台聚合** — 腾讯云（Coding Plan / Hy Token Plan / Token Plan）、火山引擎（Coding Plan + AK/SK 余额）、小米，一个面板全掌握
-- ⏱️ **实时脉搏** — 30 秒自动采集，Token 用量像心跳一样持续刷新
+- 🔭 **多平台聚合** — 腾讯云（Coding Plan / Hy Token Plan / Token Plan）、火山引擎（Coding Plan + AK/SK 余额）、小米（MiMo）、**DeepSeek（Token 用量明细 + 余额）**，一个面板全掌握
+- 📊 **模型级用量** — DeepSeek 卡片展示 v4-pro / v4-flash 的缓存命中、未命中、输出 Token、请求次数、费用明细
+- ⏱️ **实时脉搏** — 服务启动自动刷新，Token 用量持续追踪
 - 📊 **可视化配额** — 进度条 + 百分比 + 颜色编码（绿→黄→红），一眼判断剩余额度
 - 🔐 **凭证管理** — Cookie / API Key 加密存储，支持在线更新、有效性检查、级联删除
 - 🛡️ **过期告警** — Cookie 失效自动识别，统一红色气泡提醒
@@ -57,7 +58,8 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8765 --reload
 ├── collectors/          # 可插拔采集器
 │   ├── tencent.py       # 腾讯云采集器
 │   ├── volcano.py       # 火山引擎采集器
-│   └── xiaomi.py        # 小米采集器
+│   ├── xiaomi.py        # 小米采集器
+│   └── deepseek.py      # DeepSeek采集器（API Key查余额 / Token查用量明细）
 ├── static/
 │   └── index.html       # 前端页面
 └── server-php/          # PHP 服务器部署版本
