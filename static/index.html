@@ -1136,29 +1136,43 @@ function renderXiaomiCard(p) {
 
 function renderDeepSeekCard(p) {
     const monthlyCost = p.monthly_cost || p.cost_total || p.cost || 0;
-    const remaining = p.remaining || '-';
     const totalTokens = p.total_tokens || 0;
+    const balance = p.balance || 0;
     const modelUsages = p.model_usages || [];
     
     let modelHtml = '';
     for (const mu of modelUsages) {
+        // 跳过无用量的模型
+        const totalModel = mu.prompt_cache_hit + mu.prompt_cache_miss + mu.response;
+        if (totalModel === 0) continue;
+        
         const modelName = mu.model.replace('deepseek-', '');
-        const row = '<div style="margin-top:12px;padding:12px;background:rgba(30,41,59,0.5);border-radius:8px">' +
-            '<div style="font-size:13px;font-weight:600;color:#e2e8f0;margin-bottom:8px">' + modelName + '</div>' +
-            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">' +
-            '<div><span style="color:#64748b">缓存命中</span><br><span style="color:#34d399;font-weight:600">' + mu.prompt_cache_hit.toLocaleString() + '</span></div>' +
-            '<div><span style="color:#64748b">未命中缓存</span><br><span style="color:#fbbf24;font-weight:600">' + mu.prompt_cache_miss.toLocaleString() + '</span></div>' +
-            '<div><span style="color:#64748b">输出Token</span><br><span style="color:#60a5fa;font-weight:600">' + mu.response.toLocaleString() + '</span></div>' +
-            '<div><span style="color:#64748b">请求次数</span><br><span style="color:#a78bfa;font-weight:600">' + mu.requests.toLocaleString() + '</span></div>' +
+        const row = '<div style="margin-top:10px;padding:12px 14px;background:rgba(30,41,59,0.5);border-radius:10px;border:1px solid rgba(51,65,85,0.5)">' +
+            '<div style="font-size:15px;font-weight:600;color:#e2e8f0;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(51,65,85,0.5)">' + modelName + '</div>' +
+            /* 4项指标水平一排 */
+            '<div style="display:flex;gap:8px;font-size:13px">' +
+            '<div style="flex:1;background:rgba(52,211,153,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">缓存命中</div><div style="color:#34d399;font-weight:700;font-size:14px;margin-top:3px">' + mu.prompt_cache_hit.toLocaleString() + '</div></div>' +
+            '<div style="flex:1;background:rgba(251,191,36,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">未命中缓存</div><div style="color:#fbbf24;font-weight:700;font-size:14px;margin-top:3px">' + mu.prompt_cache_miss.toLocaleString() + '</div></div>' +
+            '<div style="flex:1;background:rgba(96,165,250,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">输出Token</div><div style="color:#60a5fa;font-weight:700;font-size:14px;margin-top:3px">' + mu.response.toLocaleString() + '</div></div>' +
+            '<div style="flex:1;background:rgba(167,139,250,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">请求次数</div><div style="color:#a78bfa;font-weight:700;font-size:14px;margin-top:3px">' + mu.requests.toLocaleString() + '</div></div>' +
             '</div>' +
-            '<div style="margin-top:8px;font-size:12px;color:#94a3b8">费用：缓存 ¥' + mu.cost_hit.toFixed(4) + ' · 未缓存 ¥' + mu.cost_miss.toFixed(4) + ' · 输出 ¥' + mu.cost_resp.toFixed(4) + ' = ¥' + mu.cost_total.toFixed(4) + '</div>' +
+            '<div style="margin-top:8px;font-size:11px;color:#94a3b8;text-align:center">费用：缓存 ¥' + mu.cost_hit.toFixed(4) + ' · 未缓存 ¥' + mu.cost_miss.toFixed(4) + ' · 输出 ¥' + mu.cost_resp.toFixed(4) + ' = <span style="color:#f87171">¥' + mu.cost_total.toFixed(4) + '</span></div>' +
             '</div>';
         modelHtml += row;
     }
+
+    // 余额和消费 + 月累计Token 并排
+    const balanceHtml = '<div style="padding:8px 0 4px;display:flex;justify-content:space-evenly;align-items:center">' +
+        (balance > 0
+            ? '<div style="text-align:center;min-width:120px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">充值余额</div><div style="font-size:26px;font-weight:800;color:#34d399">¥' + balance.toFixed(2) + '</div></div>'
+            : '') +
+        '<div style="text-align:center;min-width:120px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">本月消费</div><div style="font-size:26px;font-weight:800;color:#f87171">¥' + monthlyCost.toFixed(2) + '</div></div>' +
+        '<div style="text-align:center;min-width:140px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">月累计Token</div><div style="font-size:24px;font-weight:800;color:#e2e8f0">' + totalTokens.toLocaleString() + '</div></div>' +
+        '</div>';
+
+    const badge = p.balance > 0 ? getStatusBadge(30) : getStatusBadge(monthlyCost > 0 ? 70 : 30);
     
-    const badge = getStatusBadge(monthlyCost > remaining.replace('¥','') ? 80 : 30);
-    
-    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">🔮 DeepSeek</div><div class="subtitle">本月消费 ¥' + monthlyCost.toFixed(2) + ' · 余额 ' + remaining + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:8px 16px 16px"><div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px"><span style="font-size:12px;color:#64748b">月累计Token</span><span style="font-size:22px;font-weight:800;color:#e2e8f0">' + totalTokens.toLocaleString() + '</span></div>' + modelHtml + '</div><div class="card-footer"><span>DeepSeek Token用量</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">🔮 DeepSeek</div><div class="subtitle">按量计费</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + balanceHtml + '</div></div><div style="padding:0 16px 12px">' + modelHtml + '</div><div class="card-footer"><span>DeepSeek Token用量</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 function updateCountdowns() {

@@ -60,28 +60,27 @@ class DeepSeekCollector(BaseCollector):
                 token = raw
 
         # 模式1: API Key → 查余额
-        if api_key:
+        if api_key and not token:
             result = await self._collect_balance(api_key)
 
         # 模式2: Token → 查用量明细
         elif token:
             result = await self._collect_usage(token)
+            # 如果同时有 API Key，合并余额数据
+            if api_key and "error" not in result[0]:
+                balance_result = await self._collect_balance(api_key)
+                if "error" not in balance_result[0]:
+                    result[0].update({
+                        "balance": balance_result[0].get("balance", 0),
+                        "granted_balance": balance_result[0].get("granted_balance", 0),
+                        "topped_up_balance": balance_result[0].get("topped_up_balance", 0),
+                    })
 
         else:
             return self._error_result("deepseek", "请提供 API Key 或 Token")
 
         if "error" in result[0]:
             return result
-
-        # 合并余额和用量数据（如果两个凭证都提供了）
-        if api_key and token:
-            balance_result = await self._collect_balance(api_key)
-            if "error" not in balance_result[0]:
-                result[0].update({
-                    "balance": balance_result[0].get("balance", 0),
-                    "granted_balance": balance_result[0].get("granted_balance", 0),
-                    "topped_up_balance": balance_result[0].get("topped_up_balance", 0),
-                })
 
         return result
 
@@ -254,7 +253,6 @@ class DeepSeekCollector(BaseCollector):
                     "cost": round(total_cost, 2),
                     "cost_total": round(total_cost, 2),
                     "monthly_cost": round(total_cost, 2),
-                    "remaining": f"¥{8.38 - total_cost:.2f}",
                     "model_usages": model_usages,
                     "raw_json": json.dumps(amount_data, ensure_ascii=False),
                 })
