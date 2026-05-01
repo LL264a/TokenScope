@@ -16,7 +16,7 @@ import urllib.error
 
 # ============ 配置 ============
 LOCAL_API = "http://localhost:8765"
-SERVER_URL = "https://你的域名/token/receive.php"  # 改成你的服务器地址
+SERVER_URL = "https://ait.ll264a.cn/receive.php"
 TOKEN = "tm_2026_change_me"  # 必须和 receive.php 中一致
 
 
