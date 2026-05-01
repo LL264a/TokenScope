@@ -18,6 +18,9 @@ define('RECEIVE_TOKEN', 'tm_2026_change_me');  // 必须和 push_to_server.py �
 
 // ============ 初始化 ============
 header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: no-referrer');
 tm_init_tables();
 
 // ============ 鉴权 ============

@@ -37,15 +37,24 @@
 
 把所有文件上传到宝塔网站根目录，如 `/www/wwwroot/token-monitor/`
 
-### 2. Nginx 配置（必须！只加一行）
+### 2. Nginx 配置（必须！）
 
 在宝塔 → 网站 → 设置 → Nginx 配置的 `server{}` 块内，找到类似 `location / {` 的地方，改成：
 
 ```nginx
+# 主路由：所有请求先试静态文件，不存在则走 index.php
 location / {
     try_files $uri $uri/ /index.php$is_args$args;
 }
+
+# 安全加固：禁止直接访问敏感文件
+location = /cron.php { return 403; }
+location = /receive.php { return 403; }
+location ~ /\. { deny all; return 403; }
+location ~ /data/ { deny all; return 403; }
 ```
+
+> `cron.php` 只通过服务器 crontab 调用，`receive.php` 只通过内部推送调用。外部访问一律返回 403。
 
 这样所有 `/api/*` 请求都会路由到 `index.php`。
 

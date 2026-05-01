@@ -3,6 +3,14 @@
  * Token Monitor - 统一入口
  * 所有请求通过此文件路由
  */
+
+// ============ 安全响应头 ============
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('X-XSS-Protection: 1; mode=block');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'");
+
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $script_dir = dirname($_SERVER['SCRIPT_NAME']);
 // 去除子目录前缀
