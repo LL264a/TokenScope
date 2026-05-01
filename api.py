@@ -524,6 +524,28 @@ def admin_show_service(data: dict, _token: str = Depends(require_auth)):
 
 # ============ 内部刷新逻辑 ============
 
+def _build_credential_string(platform: str, cred_data: dict) -> str:
+    """根据平台类型构造凭证字符串（消除重复代码）
+    
+    - tencent/xiaomi: 支持 {"raw": "..."} 或 {"cookie": "..."} 两种存储格式
+    - volcano: 使用 get_merged_credential_data 合并 Cookie + AK/SK
+    - deepseek: JSON 格式含 api_key 和/或 token
+    """
+    if platform == "volcano":
+        merged = get_merged_credential_data(platform)
+        if not merged:
+            return ""
+        return json.dumps(merged, ensure_ascii=False)
+    elif platform in ("tencent", "xiaomi"):
+        if "raw" in cred_data:
+            return cred_data["raw"]
+        return json.dumps(cred_data, ensure_ascii=False)
+    elif platform == "deepseek":
+        return json.dumps(cred_data, ensure_ascii=False)
+    else:
+        return cred_data.get("cookie", cred_data.get("raw", ""))
+
+
 async def _do_refresh_all() -> dict:
     """执行所有平台的刷新"""
     from db import save_usage as _save_usage
@@ -539,26 +561,9 @@ async def _do_refresh_all() -> dict:
         if not cred_data:
             continue
 
-        # 腾讯平台需要完整的 JSON 凭证（含 cookie/uin/ownerUin/csrfCode）
-        # 火山平台需要合并的 JSON 凭证（含 cookie + ak/sk）
-        # 其他平台只需 Cookie 字符串
-        if platform == "volcano":
-            # 火山引擎：合并所有凭证（Cookie + AK/SK）
-            cred_data = get_merged_credential_data(platform)
-            if not cred_data:
-                continue
-            cookie_str = json.dumps(cred_data, ensure_ascii=False)
-        elif platform in ("tencent", "xiaomi"):
-            # cred_data 可能是 {"raw": "..."}（纯文本/Netscape Cookie）或 {"cookie": "..."}（JSON格式）
-            if "raw" in cred_data:
-                cookie_str = cred_data["raw"]
-            else:
-                cookie_str = json.dumps(cred_data, ensure_ascii=False)
-        elif platform == "deepseek":
-            # DeepSeek：凭证可能含 api_key 和/或 token
-            cookie_str = json.dumps(cred_data, ensure_ascii=False)
-        else:
-            cookie_str = cred_data.get("cookie", cred_data.get("raw", ""))
+        cookie_str = _build_credential_string(platform, cred_data)
+        if not cookie_str:
+            continue
 
         collector = REGISTRY.get(platform)
         if not collector:
@@ -616,25 +621,9 @@ async def _do_refresh_platform(platform: str) -> dict:
         return {platform: {"status": "error", "error": "无凭证"}}
 
     # 构造凭证字符串
-    if platform == "volcano":
-        cred_data = get_merged_credential_data(platform)
-        if not cred_data:
-            return {platform: {"status": "error", "error": "无凭证"}}
-        cookie_str = json.dumps(cred_data, ensure_ascii=False)
-    elif platform in ("tencent", "xiaomi"):
-        # cred_data 可能是 {"raw": "..."}（纯文本/Netscape Cookie）或 {"cookie": "..."}（JSON格式）
-        if "raw" in cred_data:
-            cookie_str = cred_data["raw"]
-        else:
-            cookie_str = json.dumps(cred_data, ensure_ascii=False)
-    elif platform == "deepseek":
-        cookie_str = json.dumps(cred_data, ensure_ascii=False)
-    else:
-        cookie_str = cred_data.get("cookie", cred_data.get("raw", ""))
-
-    # 调试日志
-    import logging as _lg
-    _lg.getLogger("refresh").warning(f"[DEBUG] platform={platform} cred_data_keys={list(cred_data.keys())} cookie_str_len={len(cookie_str)} cookie_str_start={repr(cookie_str[:80])}")
+    cookie_str = _build_credential_string(platform, cred_data)
+    if not cookie_str:
+        return {platform: {"status": "error", "error": "无凭证"}}
 
     collector = REGISTRY.get(platform)
     if not collector:
@@ -690,21 +679,9 @@ async def _do_check_credential(platform: str) -> dict:
         return {"status": "error", "error": "无凭证", "platform": platform}
 
     # 构造凭证字符串
-    if platform == "volcano":
-        cred_data = get_merged_credential_data(platform)
-        if not cred_data:
-            return {"status": "error", "error": "无凭证", "platform": platform}
-        cookie_str = json.dumps(cred_data, ensure_ascii=False)
-    elif platform in ("tencent", "xiaomi"):
-        # cred_data 可能是 {"raw": "..."}（纯文本/Netscape Cookie）或 {"cookie": "..."}（JSON格式）
-        if "raw" in cred_data:
-            cookie_str = cred_data["raw"]
-        else:
-            cookie_str = json.dumps(cred_data, ensure_ascii=False)
-    elif platform == "deepseek":
-        cookie_str = json.dumps(cred_data, ensure_ascii=False)
-    else:
-        cookie_str = cred_data.get("cookie", cred_data.get("raw", ""))
+    cookie_str = _build_credential_string(platform, cred_data)
+    if not cookie_str:
+        return {"status": "error", "error": "无凭证", "platform": platform}
 
     collector = REGISTRY.get(platform)
     if not collector:

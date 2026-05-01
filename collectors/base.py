@@ -1,4 +1,4 @@
-"""采集器基类 - 定义统一接口"""
+"""采集器基类 - 定义统一接口和公共工具方法"""
 
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -34,6 +34,8 @@ class BaseCollector(ABC):
         """
         ...
 
+    # ============ 公共 HTTP 工具 ============
+
     def _make_headers(self, cookie_str: str, referer: str = "") -> dict:
         """构造通用请求头"""
         headers = {
@@ -46,6 +48,50 @@ class BaseCollector(ABC):
             headers["Referer"] = referer
         return headers
 
-    def _error_result(self, sub_platform: str, message: str) -> list[dict]:
-        """快捷返回错误结果"""
-        return [{"platform": sub_platform, "error": message}]
+    # ============ Cookie 解析公共方法 ============
+
+    @staticmethod
+    def _extract_cookie_value(cookie_str: str, key: str) -> str:
+        """从 Cookie 字符串中提取指定值"""
+        for part in cookie_str.split(";"):
+            part = part.strip()
+            if part.startswith(f"{key}="):
+                return part.split("=", 1)[1]
+        return ""
+
+    @staticmethod
+    def _parse_netscape_cookies(text: str) -> Optional[str]:
+        """解析 Netscape Cookie 文件格式，返回 key=value; key=value 字符串
+
+        Netscape 格式每行: domain\\tinclude_subdomains\\tpath\\tsecure\\texpiry\\tname\\tvalue
+        返回 None 表示不是 Netscape 格式
+        """
+        lines = text.strip().splitlines()
+        pairs = []
+        is_netscape = False
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                if any(kw in line.lower() for kw in ("curl", "netscape", "generated")):
+                    is_netscape = True
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 7:
+                is_netscape = True
+                name = parts[5].strip()
+                value = parts[6].strip()
+                if name:
+                    pairs.append(f"{name}={value}")
+        if is_netscape and pairs:
+            return "; ".join(pairs)
+        return None
+
+    # ============ 错误构造 ============
+
+    def _error_result(self, sub_platform: str, message: str,
+                      cookie_expired: bool = False) -> list[dict]:
+        """构造错误结果，可选标记 Cookie 失效"""
+        item = {"platform": sub_platform, "error": message}
+        if cookie_expired:
+            item["cookie_expired"] = True
+        return [item]

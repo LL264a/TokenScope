@@ -37,8 +37,11 @@ class TencentCollector(BaseCollector):
         # 解析凭证
         cred = self._parse_credential(cookie_str)
         if not cred:
-            return [self._error_item(svc["key"], "凭证格式错误，需要Cookie+uin+ownerUin+csrfCode")
-                    for svc in self.services]
+            results = []
+            for svc in self.services:
+                results.extend(self._error_result(svc["key"],
+                    "凭证格式错误，需要Cookie+uin+ownerUin+csrfCode"))
+            return results
 
         cookie_str, uin, ownerUin, csrfCode = cred
         headers = self._make_api_headers(cookie_str)
@@ -56,9 +59,9 @@ class TencentCollector(BaseCollector):
                 else:
                     # 数据为空大概率也是 Cookie 失效
                     self._cookie_expired = True
-                    results.append(self._error_item("tencent_codingplan", "Cookie 已失效，请重新获取", cookie_expired=True))
+                    results.extend(self._error_result("tencent_codingplan", "Cookie 已失效，请重新获取", cookie_expired=True))
             except Exception as e:
-                results.append(self._error_item("tencent_codingplan", str(e)))
+                results.extend(self._error_result("tencent_codingplan", str(e)))
 
             # ---- 2. Token Plans (ListUserTokenPlans + DescribeTokenPlanUsage) ----
             try:
@@ -66,8 +69,8 @@ class TencentCollector(BaseCollector):
                 if not plan_list:
                     # 未找到计划大概率也是 Cookie 失效
                     self._cookie_expired = True
-                    results.append(self._error_item("tencent_hy_tokenplan", "Cookie 已失效，请重新获取", cookie_expired=True))
-                    results.append(self._error_item("tencent_tokenplan", "Cookie 已失效，请重新获取", cookie_expired=True))
+                    results.extend(self._error_result("tencent_hy_tokenplan", "Cookie 已失效，请重新获取", cookie_expired=True))
+                    results.extend(self._error_result("tencent_tokenplan", "Cookie 已失效，请重新获取", cookie_expired=True))
                 else:
                     for plan in plan_list:
                         plan_key = plan.get("plan_key", "")
@@ -79,12 +82,12 @@ class TencentCollector(BaseCollector):
                                 usage["platform"] = plan_key
                                 results.append(usage)
                             else:
-                                results.append(self._error_item(plan_key, "用量数据为空"))
+                                results.extend(self._error_result(plan_key, "用量数据为空"))
                         except Exception as e:
-                            results.append(self._error_item(plan_key, str(e)))
+                            results.extend(self._error_result(plan_key, str(e)))
             except Exception as e:
-                results.append(self._error_item("tencent_hy_tokenplan", str(e)))
-                results.append(self._error_item("tencent_tokenplan", str(e)))
+                results.extend(self._error_result("tencent_hy_tokenplan", str(e)))
+                results.extend(self._error_result("tencent_tokenplan", str(e)))
 
         return results
 
@@ -126,41 +129,6 @@ class TencentCollector(BaseCollector):
         if not uin or not csrfCode:
             return None
         return (cookie_str, uin, ownerUin, csrfCode)
-
-    @staticmethod
-    def _extract_cookie_value(cookie_str: str, key: str) -> str:
-        """从 Cookie 字符串中提取指定值"""
-        for part in cookie_str.split(";"):
-            part = part.strip()
-            if part.startswith(f"{key}="):
-                return part.split("=", 1)[1]
-        return ""
-
-    @staticmethod
-    def _parse_netscape_cookies(text: str) -> Optional[str]:
-        """解析 Netscape Cookie 文件格式，返回 key=value; key=value 字符串
-
-        Netscape 格式每行: domain\\tinclude_subdomains\\tpath\\tsecure\\texpiry\\tname\\tvalue
-        """
-        lines = text.strip().splitlines()
-        pairs = []
-        is_netscape = False
-        for line in lines:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                if "curl" in line.lower() or "netscape" in line.lower() or "generated" in line.lower():
-                    is_netscape = True
-                continue
-            parts = line.split("\t")
-            if len(parts) >= 7:
-                is_netscape = True
-                name = parts[5].strip()
-                value = parts[6].strip()
-                if name:
-                    pairs.append(f"{name}={value}")
-        if is_netscape and pairs:
-            return "; ".join(pairs)
-        return None
 
     # ============ HTTP 请求构造 ============
 
@@ -406,12 +374,6 @@ class TencentCollector(BaseCollector):
         return data
 
     # ============ 工具方法 ============
-
-    def _error_item(self, key: str, msg: str, cookie_expired: bool = False) -> dict:
-        item = {"platform": key, "error": msg}
-        if cookie_expired:
-            item["cookie_expired"] = True
-        return item
 
     @staticmethod
     def _fmt(n: int) -> str:

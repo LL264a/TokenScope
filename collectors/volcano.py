@@ -68,7 +68,7 @@ class VolcanoCollector(BaseCollector):
                 return self._error_result("volcano", "缺少凭证：需要 Cookie（查Coding Plan）或 AK/SK（查余额）")
             elif cookie and not (ak and sk):
                 # 只有 Cookie，Coding Plan 查询失败
-                results.append(self._error_item("volcano_codingplan", "Coding Plan 查询失败，Cookie可能已失效"))
+                results.extend(self._error_result("volcano_codingplan", "Coding Plan 查询失败，Cookie可能已失效"))
             elif ak and sk and not cookie:
                 # 只有 AK/SK，无法查 Coding Plan
                 pass  # 余额数据已加入
@@ -259,34 +259,6 @@ class VolcanoCollector(BaseCollector):
             logger.warning(f"[volcano] ListSubscribeTrade 失败: {e}")
             return None
 
-    @staticmethod
-    def _extract_cookie_value(cookie_str: str, key: str) -> str:
-        """从 Cookie 字符串中提取指定值"""
-        for part in cookie_str.split(";"):
-            part = part.strip()
-            if part.startswith(f"{key}="):
-                return part.split("=", 1)[1]
-        return ""
-
-    @staticmethod
-    def _parse_netscape_cookies(text: str) -> str:
-        """将 Netscape Cookie 文件格式转换为 key=value; key=value 字符串
-        
-        Netscape 格式每行：domain \t include_subdomains \t path \t secure \t expiry \t name \t value
-        """
-        pairs = []
-        for line in text.strip().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split("\t")
-            if len(parts) >= 7:
-                name = parts[5].strip()
-                value = parts[6].strip()
-                if name:
-                    pairs.append(f"{name}={value}")
-        return "; ".join(pairs)
-
     async def _collect_with_aksdk(self, ak: str, sk: str) -> list[dict]:
         """用 AK/SK 通过官方 SDK 查询余额（保留旧逻辑）"""
         import asyncio
@@ -298,10 +270,10 @@ class VolcanoCollector(BaseCollector):
             if balance_data:
                 results.append(balance_data)
             else:
-                results.append(self._error_item("volcano", "余额查询返回为空"))
+                results.extend(self._error_result("volcano", "余额查询返回为空"))
         except Exception as e:
             logger.error(f"[volcano] SDK余额查询失败: {e}")
-            results.append(self._error_item("volcano", f"余额查询失败: {e}"))
+            results.extend(self._error_result("volcano", f"余额查询失败: {e}"))
 
         if not results:
             return self._error_result("volcano", "所有查询均失败")
@@ -353,9 +325,3 @@ class VolcanoCollector(BaseCollector):
         except Exception as e:
             logger.error(f"[volcano] SDK调用异常: {e}")
             return None
-
-    def _error_item(self, key: str, msg: str, cookie_expired: bool = False) -> dict:
-        item = {"platform": key, "error": msg}
-        if cookie_expired:
-            item["cookie_expired"] = True
-        return item
