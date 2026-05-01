@@ -4,7 +4,7 @@
  */
 
 // ============ 版本 ============
-define('APP_VERSION', 'v1.6.3');
+define('APP_VERSION', 'v1.7.0');
 
 // ============ 路径 ============
 define('TM_ROOT', __DIR__);
@@ -44,6 +44,16 @@ define('TM_PLATFORMS', [
         'credential_types' => ['cookie'],
         'cookie_hint' => '从浏览器 DevTools 复制 Cookie（需先登录 platform.xiaomimimo.com）',
     ],
+    'deepseek' => [
+        'name' => 'DeepSeek',
+        'icon' => '🔮',
+        'services' => [
+            ['key' => 'deepseek', 'name' => 'DeepSeek 用量', 'plan_type' => 'deepseek'],
+        ],
+        'credential_types' => ['api_key', 'cookie'],
+        'api_key_hint' => '粘贴 DeepSeek API Key（从 https://platform.deepseek.com/api_keys 获取）→ 显示账户余额（¥）',
+        'cookie_hint' => '粘贴 Token（登录 platform.deepseek.com → F12 → Application → LocalStorage → userToken → 复制value值）→ 显示按模型用量明细\n\n也可同时提供：{"api_key":"sk-xxx","token":"xxx"} 同时显示余额和用量',
+    ],
 ]);
 
 // ============ 子计划→父平台映射 ============
@@ -54,6 +64,7 @@ define('TM_SUB_TO_PARENT', [
     'volcano_codingplan' => 'volcano',
     'volcano' => 'volcano',
     'xiaomi' => 'xiaomi',
+    'deepseek' => 'deepseek',
 ]);
 
 // ============ 腾讯云 API ============

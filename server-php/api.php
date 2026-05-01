@@ -307,7 +307,8 @@ function tm_api_stats() {
                 'plan_status','remaining_pct','balance_available','balance_cash','balance_credit',
                 'balance_frozen','balance_arrears','balance','gift_balance','cash_balance','frozen_balance',
                 'cache_tokens','tpm','rpm','current_month_cost','month_used','month_limit','month_pct',
-                'plan_pct','comp_total','comp_used','comp_pct','auto_renew'];
+                'plan_pct','comp_total','comp_used','comp_pct','auto_renew',
+                'model_usages','monthly_cost','cost_total','granted_balance','topped_up_balance'];
             foreach ($extra_keys as $key) {
                 if (isset($p[$key])) $entry[$key] = $p[$key];
             }
@@ -353,6 +354,21 @@ function tm_api_stats() {
         $p['sort_weight'] = $weights[$key] ?? 0;
     }
     unset($p);
+
+    // 有凭证但无数据的平台 → no_data 占位卡
+    $creds = tm_list_credentials();
+    foreach ($creds as $cred) {
+        $platform = $cred['platform'];
+        if (!isset($all_platforms[$platform])) {
+            $all_platforms[$platform] = [
+                'platform' => $platform,
+                'total_tokens' => 0, 'input_tokens' => 0, 'output_tokens' => 0,
+                'cost' => 0, 'remaining' => '',
+                'last_updated' => '', 'source' => 'console', 'calls' => 0,
+                'services' => [], 'no_data' => true,
+            ];
+        }
+    }
 
     usort($all_platforms, fn($a, $b) => ($b['sort_weight'] ?? 0) - ($a['sort_weight'] ?? 0));
 

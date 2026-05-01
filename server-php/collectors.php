@@ -609,6 +609,227 @@ function tm_xiaomi_api_get(string $url, array $headers): ?array {
     return $data;
 }
 
+// ============ DeepSeek 采集 ============
+
+function tm_collect_deepseek(string $cookie_str): array {
+    // 解析凭证: JSON 格式或纯文本
+    $cred = json_decode($cookie_str, true);
+    if (!is_array($cred)) {
+        $raw = trim($cookie_str);
+        if (strpos($raw, 'sk-') === 0) {
+            $cred = ['api_key' => $raw];
+        } else {
+            $cred = ['token' => $raw];
+        }
+    }
+
+    $api_key = $cred['api_key'] ?? '';
+    $token = $cred['token'] ?? '';
+    $raw = $cred['raw'] ?? '';
+
+    // raw 兜底
+    if (!$api_key && !$token && $raw) {
+        $raw = trim($raw);
+        if (strpos($raw, 'sk-') === 0) {
+            $api_key = $raw;
+        } else {
+            $token = $raw;
+        }
+    }
+
+    // 模式1: API Key → 查余额
+    if ($api_key && !$token) {
+        return tm_collect_deepseek_balance($api_key);
+    }
+
+    // 模式2: Token → 查用量明细
+    if ($token) {
+        $result = tm_collect_deepseek_usage($token);
+        // 同时有 API Key，合并余额
+        if ($api_key && !isset($result[0]['error'])) {
+            $balance = tm_collect_deepseek_balance($api_key);
+            if (!isset($balance[0]['error'])) {
+                $result[0]['balance'] = $balance[0]['balance'] ?? 0;
+                $result[0]['granted_balance'] = $balance[0]['granted_balance'] ?? 0;
+                $result[0]['topped_up_balance'] = $balance[0]['topped_up_balance'] ?? 0;
+            }
+        }
+        return $result;
+    }
+
+    return [tm_error_item('deepseek', '请提供 API Key 或 Token')];
+}
+
+/**
+ * 模式1: API Key 查余额
+ */
+function tm_collect_deepseek_balance(string $api_key): array {
+    $headers = [
+        'Authorization' => "Bearer $api_key",
+        'Accept' => 'application/json',
+    ];
+
+    $resp = tm_http_get('https://api.deepseek.com/user/balance', $headers);
+
+    $result = [
+        'platform' => 'deepseek',
+        'total_tokens' => 0,
+        'input_tokens' => 0,
+        'output_tokens' => 0,
+        'cost' => 0,
+        'remaining' => '-',
+    ];
+
+    if (!$resp) return [tm_error_item('deepseek', '请求失败（网络错误）')];
+    if ($resp['code'] === 401) return [tm_error_item('deepseek', 'API Key 无效，请检查后重试')];
+    if ($resp['code'] !== 200) return [tm_error_item('deepseek', "请求失败 (HTTP {$resp['code']})")];
+
+    $data = json_decode($resp['body'], true);
+    if (!is_array($data)) return [tm_error_item('deepseek', '响应解析失败')];
+
+    if (!($data['is_available'] ?? false)) {
+        $result['remaining'] = '¥0.00（已用完）';
+    } else {
+        foreach ($data['balance_infos'] ?? [] as $bi) {
+            if (($bi['currency'] ?? '') === 'CNY') {
+                $total = floatval($bi['total_balance'] ?? '0');
+                $granted = floatval($bi['granted_balance'] ?? '0');
+                $topped = floatval($bi['topped_up_balance'] ?? '0');
+                $result['balance'] = $total;
+                $result['granted_balance'] = $granted;
+                $result['topped_up_balance'] = $topped;
+                $result['remaining'] = '¥' . number_format($total, 2);
+                break;
+            }
+        }
+    }
+
+    $result['raw_json'] = json_encode($data, JSON_UNESCAPED_UNICODE);
+    return [$result];
+}
+
+/**
+ * 模式2: UserToken 查用量明细
+ */
+function tm_collect_deepseek_usage(string $token): array {
+    $headers = [
+        'Authorization' => "Bearer $token",
+        'Accept' => 'application/json',
+        'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Origin' => 'https://platform.deepseek.com',
+        'Referer' => 'https://platform.deepseek.com/usage',
+    ];
+
+    $now = (int)date('n');  // month
+    $year = (int)date('Y');
+
+    $result = [
+        'platform' => 'deepseek',
+        'total_tokens' => 0,
+        'input_tokens' => 0,
+        'output_tokens' => 0,
+        'cost' => 0,
+        'cost_total' => 0,
+        'remaining' => '-',
+    ];
+
+    // 1. 查用量
+    $resp = tm_http_get("https://platform.deepseek.com/api/v0/usage/amount?month=$now&year=$year", $headers);
+    if (!$resp || $resp['code'] !== 200) {
+        $code = $resp ? $resp['code'] : 0;
+        return [tm_error_item('deepseek', "用量查询失败 (HTTP $code)")];
+    }
+
+    $amount_data = json_decode($resp['body'], true);
+    if (!is_array($amount_data) || ($amount_data['code'] ?? -1) !== 0) {
+        $msg = $amount_data['msg'] ?? '用量查询失败';
+        if (stripos($msg, 'token') !== false) {
+            return [tm_error_item('deepseek', 'Token 已过期，请重新登录获取')];
+        }
+        return [tm_error_item('deepseek', $msg)];
+    }
+
+    // 2. 查费用
+    $resp_cost = tm_http_get("https://platform.deepseek.com/api/v0/usage/cost?month=$now&year=$year", $headers);
+    $cost_biz_data = [];
+    if ($resp_cost && $resp_cost['code'] === 200) {
+        $cost_data = json_decode($resp_cost['body'], true);
+        $cost_totals = $cost_data['data']['biz_data'][0]['total'] ?? [];
+        foreach ($cost_totals as $ce) {
+            $model = $ce['model'] ?? '';
+            $cost_biz_data[$model] = [];
+            foreach ($ce['usage'] ?? [] as $u) {
+                $cost_biz_data[$model][$u['type']] = floatval($u['amount']);
+            }
+        }
+    }
+
+    // 解析用量
+    $totals = $amount_data['data']['biz_data']['total'] ?? [];
+    $model_usages = [];
+    $total_cost = 0.0;
+    $total_tokens = 0;
+
+    foreach ($totals as $me) {
+        $model = $me['model'] ?? '';
+
+        $usage = [];
+        foreach ($me['usage'] ?? [] as $u) {
+            $usage[$u['type']] = intval($u['amount']);
+        }
+
+        $cost_map = $cost_biz_data[$model] ?? [];
+
+        $hit = $usage['PROMPT_CACHE_HIT_TOKEN'] ?? 0;
+        $miss = $usage['PROMPT_CACHE_MISS_TOKEN'] ?? 0;
+        $resp_tok = $usage['RESPONSE_TOKEN'] ?? 0;
+        $requests = $usage['REQUEST'] ?? 0;
+
+        $cost_hit = $cost_map['PROMPT_CACHE_HIT_TOKEN'] ?? 0;
+        $cost_miss = $cost_map['PROMPT_CACHE_MISS_TOKEN'] ?? 0;
+        $cost_resp = $cost_map['RESPONSE_TOKEN'] ?? 0;
+        $model_cost = $cost_hit + $cost_miss + $cost_resp;
+        $total_cost += $model_cost;
+        $total_tokens += $hit + $miss + $resp_tok;
+
+        $model_usages[] = [
+            'model' => $model,
+            'prompt_cache_hit' => $hit,
+            'prompt_cache_miss' => $miss,
+            'response' => $resp_tok,
+            'requests' => $requests,
+            'cost_hit' => round($cost_hit, 4),
+            'cost_miss' => round($cost_miss, 4),
+            'cost_resp' => round($cost_resp, 4),
+            'cost_total' => round($model_cost, 4),
+        ];
+    }
+
+    // 构建摘要
+    $summary_lines = [];
+    foreach ($model_usages as $mu) {
+        $summary_lines[] = sprintf(
+            "%s: ↑%s (cache:%s) ↓%s | ¥%.2f",
+            $mu['model'],
+            number_format($mu['prompt_cache_miss']),
+            number_format($mu['prompt_cache_hit']),
+            number_format($mu['response']),
+            $mu['cost_total']
+        );
+    }
+
+    $result['total_tokens'] = $total_tokens;
+    $result['input_tokens'] = array_sum(array_column($model_usages, 'prompt_cache_miss')) + array_sum(array_column($model_usages, 'prompt_cache_hit'));
+    $result['output_tokens'] = array_sum(array_column($model_usages, 'response'));
+    $result['cost'] = round($total_cost, 2);
+    $result['cost_total'] = round($total_cost, 2);
+    $result['monthly_cost'] = round($total_cost, 2);
+    $result['model_usages'] = $model_usages;
+    $result['raw_json'] = json_encode($amount_data, JSON_UNESCAPED_UNICODE);
+
+    return [$result];
+}
+
 // ============ 通用 ============
 
 function tm_error_item(string $key, string $msg, bool $cookie_expired=false): array {
@@ -637,6 +858,7 @@ function tm_do_refresh_all(): array {
                 'tencent' => tm_collect_tencent($cookie_str),
                 'volcano' => tm_collect_volcano($cookie_str),
                 'xiaomi' => tm_collect_xiaomi($cookie_str),
+                'deepseek' => tm_collect_deepseek($cookie_str),
                 default => [tm_error_item($platform, "不支持的平台: $platform")],
             };
 
@@ -691,6 +913,7 @@ function tm_do_refresh_platform(string $platform): array {
             'tencent' => tm_collect_tencent($cookie_str),
             'volcano' => tm_collect_volcano($cookie_str),
             'xiaomi' => tm_collect_xiaomi($cookie_str),
+            'deepseek' => tm_collect_deepseek($cookie_str),
             default => [tm_error_item($platform, "不支持的平台: $platform")],
         };
 
@@ -743,6 +966,7 @@ function tm_do_check_credential(string $platform): array {
             'tencent' => tm_collect_tencent($cookie_str),
             'volcano' => tm_collect_volcano($cookie_str),
             'xiaomi' => tm_collect_xiaomi($cookie_str),
+            'deepseek' => tm_collect_deepseek($cookie_str),
             default => [tm_error_item($platform, "不支持的平台: $platform")],
         };
 
