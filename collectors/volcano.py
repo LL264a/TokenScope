@@ -140,7 +140,7 @@ class VolcanoCollector(BaseCollector):
                             remaining_days = int((end_ts - time.time()) / 86400)
                             if remaining_days > 0:
                                 result["remaining_days"] = remaining_days
-                        except:
+                        except (ValueError, OverflowError, OSError):
                             pass
 
                 # 计算 remaining 摘要

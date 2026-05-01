@@ -21,6 +21,13 @@ from auth import (
     check_login_rate, get_login_remaining_attempts,
     verify_internal_key,
 )
+from models import (
+    PasswordRequest, ChangePasswordRequest,
+    CredentialSaveRequest,
+    SchedulerActionRequest,
+    SortModeRequest, SortWeightsRequest,
+    ServiceVisibilityRequest,
+)
 import db
 from scheduler import scheduler
 from collectors import REGISTRY
@@ -62,15 +69,12 @@ def auth_status(request: Request):
 
 
 @router.post("/api/auth/setup")
-def auth_setup(data: dict, request: Request):
-    """首次设置密码（仅当密码未设置时可用）
-    注意：此端点不做登录限流，因为只允许在未设密码时调用一次。
-    设完密码后此端点立即变为400不可用，不存在暴力风险。
-    """
+def auth_setup(data: PasswordRequest, request: Request):
+    """首次设置密码（仅当密码未设置时可用）"""
     if has_admin_password():
         raise HTTPException(status_code=400, detail="密码已设置，请使用登录接口")
 
-    password = data.get("password", "")
+    password = data.password
     if len(password) < 4:
         raise HTTPException(status_code=400, detail="密码至少4位")
 
@@ -80,18 +84,18 @@ def auth_setup(data: dict, request: Request):
 
 
 @router.post("/api/auth/login")
-def auth_login(data: dict, request: Request):
+def auth_login(data: PasswordRequest, request: Request):
     """管理员登录"""
     client_ip = request.client.host if request.client else "unknown"
 
     if not check_login_rate(client_ip):
-        remaining_time = 300  # 大约5分钟
+        remaining_time = 300
         raise HTTPException(
             status_code=429,
             detail=f"尝试次数过多，请{remaining_time}秒后再试"
         )
 
-    password = data.get("password", "")
+    password = data.password
     stored_hash = get_admin_password_hash()
 
     if not stored_hash:
@@ -118,12 +122,11 @@ def auth_logout(request: Request):
 
 
 @router.post("/api/auth/change-password")
-def auth_change_password(data: dict, token: str = Depends(require_auth)):
+def auth_change_password(data: ChangePasswordRequest, token: str = Depends(require_auth)):
     """修改密码（需登录），修改后踢出其他设备的会话"""
-    old_password = data.get("old_password", "")
-    new_password = data.get("new_password", "")
+    old_password, new_password = data.old_password, data.new_password
 
-    if not new_password or len(new_password) < 4:
+    if len(new_password) < 4:
         raise HTTPException(status_code=400, detail="新密码至少4位")
 
     stored_hash = get_admin_password_hash()
@@ -359,7 +362,7 @@ def admin_list_credentials(_token: str = Depends(require_auth)):
 def admin_get_credential(platform: str, _token: str = Depends(require_auth)):
     cred = get_credential(platform)
     if not cred:
-        return {"error": "凭证不存在"}
+        raise HTTPException(status_code=404, detail="凭证不存在")
     data = cred.get("credential_data", "")
     if len(data) > 20:
         masked = data[:8] + "..." + data[-4:]
@@ -375,26 +378,19 @@ def admin_get_credential(platform: str, _token: str = Depends(require_auth)):
 
 
 @router.post("/api/admin/credentials")
-def admin_save_credential(data: dict, _token: str = Depends(require_auth)):
-    platform = data.get("platform")
-    cred_type = data.get("credential_type", "cookie")
-    cred_data = data.get("credential_data", "")
-    note = data.get("note", "")
+def admin_save_credential(data: CredentialSaveRequest, _token: str = Depends(require_auth)):
+    if not data.credential_data:
+        raise HTTPException(status_code=400, detail="凭证数据不能为空")
 
-    if not platform or not cred_data:
-        return {"error": "平台和凭证数据不能为空"}
-    if platform not in PLATFORMS:
-        return {"error": f"不支持的平台: {platform}"}
-
-    save_credential(platform, cred_type, cred_data, note)
-    return {"status": "ok", "message": f"已保存 {platform} 的凭证"}
+    save_credential(data.platform, data.credential_type, data.credential_data, data.note)
+    return {"status": "ok", "message": f"已保存 {data.platform} 的凭证"}
 
 
 @router.delete("/api/admin/credentials/{platform}")
 def admin_delete_credential(platform: str, _token: str = Depends(require_auth)):
     if delete_credential(platform):
         return {"status": "ok", "message": f"已删除 {platform} 的凭证"}
-    return {"error": "凭证不存在"}
+    raise HTTPException(status_code=404, detail="凭证不存在")
 
 
 @router.post("/api/admin/refresh")
@@ -408,7 +404,7 @@ async def admin_refresh_now(_token: str = Depends(require_auth)):
 async def admin_refresh_platform(platform: str, _token: str = Depends(require_auth)):
     """刷新单个平台数据"""
     if platform not in REGISTRY:
-        return {"error": "未知平台"}
+        raise HTTPException(status_code=404, detail="未知平台")
     results = await _do_refresh_platform(platform)
     return {"status": "ok", "results": results}
 
@@ -417,7 +413,7 @@ async def admin_refresh_platform(platform: str, _token: str = Depends(require_au
 async def admin_check_credential(platform: str, _token: str = Depends(require_auth)):
     """检查单个平台凭证是否有效（不写数据库）"""
     if platform not in REGISTRY:
-        return {"error": "未知平台"}
+        raise HTTPException(status_code=404, detail="未知平台")
     result = await _do_check_credential(platform)
     return result
 
@@ -433,13 +429,14 @@ def admin_scheduler_status(_token: str = Depends(require_auth)):
 
 
 @router.post("/api/admin/scheduler")
-def admin_scheduler_control(data: dict, _token: str = Depends(require_auth)):
-    action = data.get("action", "")
-    interval = data.get("interval")
+def admin_scheduler_control(data: SchedulerActionRequest, _token: str = Depends(require_auth)):
+    action = data.action
+    interval = data.interval
 
-    if interval:
+    if interval is not None:
         scheduler.interval = interval
-        return {"status": "ok", "message": f"间隔已设为{scheduler.interval}秒"}
+        if not action:
+            return {"status": "ok", "message": f"间隔已设为{scheduler.interval}秒"}
 
     if action == "start":
         if scheduler.start():
@@ -454,7 +451,7 @@ def admin_scheduler_control(data: dict, _token: str = Depends(require_auth)):
         scheduler.start()
         return {"status": "ok", "message": f"调度器已重启，间隔{scheduler.interval}秒"}
 
-    return {"error": "未知操作"}
+    raise HTTPException(status_code=400, detail=f"未知操作: {action}")
 
 
 @router.get("/api/admin/platforms")
@@ -470,13 +467,10 @@ def admin_get_sort_mode(_token: str = Depends(require_auth)):
 
 
 @router.post("/api/admin/sort-mode")
-def admin_set_sort_mode(data: dict, _token: str = Depends(require_auth)):
+def admin_set_sort_mode(data: SortModeRequest, _token: str = Depends(require_auth)):
     """设置排序模式：realtime 或 weight"""
-    mode = data.get("mode", "weight")
-    if mode not in ("realtime", "weight"):
-        return {"error": "无效的排序模式"}
-    set_setting("sort_mode", mode)
-    return {"status": "ok", "message": f"排序模式已切换为 {'实时' if mode == 'realtime' else '权重'}排序"}
+    set_setting("sort_mode", data.mode)
+    return {"status": "ok", "message": f"排序模式已切换为 {'实时' if data.mode == 'realtime' else '权重'}排序"}
 
 
 @router.get("/api/admin/sort-weights")
@@ -486,9 +480,9 @@ def admin_get_sort_weights(_token: str = Depends(require_auth)):
 
 
 @router.post("/api/admin/sort-weights")
-def admin_set_sort_weights(data: dict, _token: str = Depends(require_auth)):
-    """批量设置平台排序权重，data = {platform: weight, ...}"""
-    for platform, weight in data.items():
+def admin_set_sort_weights(data: SortWeightsRequest, _token: str = Depends(require_auth)):
+    """批量设置平台排序权重，body = {platform: weight, ...}"""
+    for platform, weight in data.root.items():
         try:
             set_sort_weight(platform, int(weight))
         except (ValueError, TypeError):
@@ -503,23 +497,17 @@ def admin_get_hidden_services(_token: str = Depends(require_auth)):
 
 
 @router.post("/api/admin/hidden-services/hide")
-def admin_hide_service(data: dict, _token: str = Depends(require_auth)):
+def admin_hide_service(data: ServiceVisibilityRequest, _token: str = Depends(require_auth)):
     """隐藏一个子服务"""
-    sub_platform = data.get("sub_platform")
-    if not sub_platform:
-        return {"error": "缺少 sub_platform"}
-    hide_service(sub_platform)
-    return {"status": "ok", "message": f"已隐藏 {sub_platform}"}
+    hide_service(data.sub_platform)
+    return {"status": "ok", "message": f"已隐藏 {data.sub_platform}"}
 
 
 @router.post("/api/admin/hidden-services/show")
-def admin_show_service(data: dict, _token: str = Depends(require_auth)):
+def admin_show_service(data: ServiceVisibilityRequest, _token: str = Depends(require_auth)):
     """恢复显示一个子服务"""
-    sub_platform = data.get("sub_platform")
-    if not sub_platform:
-        return {"error": "缺少 sub_platform"}
-    show_service(sub_platform)
-    return {"status": "ok", "message": f"已恢复显示 {sub_platform}"}
+    show_service(data.sub_platform)
+    return {"status": "ok", "message": f"已恢复显示 {data.sub_platform}"}
 
 
 # ============ 内部刷新逻辑 ============

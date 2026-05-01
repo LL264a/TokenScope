@@ -74,7 +74,8 @@ def _migrate_credentials_table(conn):
         pk_cols = [c for c in cols if c[5] > 0]  # pk > 0 的列
         if len(pk_cols) == 2:
             return  # 已经是复合主键，无需迁移
-    except:
+    except Exception:
+        # 表不存在或损坏，跳过迁移
         return
 
     # 迁移：创建新表、复制数据、替换

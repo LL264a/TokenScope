@@ -138,7 +138,7 @@ class XiaomiCollector(BaseCollector):
                     remaining_days = int((end_ts - time.time()) / 86400)
                     if remaining_days > 0:
                         result["remaining_days"] = remaining_days
-                except:
+                except (ValueError, OverflowError, OSError):
                     pass
 
             # 套餐价格（从 plan_code 映射）
