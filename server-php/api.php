@@ -42,28 +42,36 @@ if ($path === '/api/auth/status' && $method === 'GET') {
 }
 
 if ($path === '/api/auth/setup' && $method === 'POST') {
-    if (tm_has_password()) tm_json_error('密码已设置，请使用登录接口', 400);
-    $password = $input['password'] ?? '';
-    if (strlen($password) < 4) tm_json_error('密码至少4位', 400);
-    tm_set_password_hash(tm_hash_password($password));
-    $token = tm_create_session();
-    tm_json_response(['status' => 'ok', 'token' => $token, 'message' => '密码设置成功']);
+    try {
+        if (tm_has_password()) tm_json_error('密码已设置，请使用登录接口', 400);
+        $password = $input['password'] ?? '';
+        if (strlen($password) < 4) tm_json_error('密码至少4位', 400);
+        tm_set_password_hash(tm_hash_password($password));
+        $token = tm_create_session();
+        tm_json_response(['status' => 'ok', 'token' => $token, 'message' => '密码设置成功']);
+    } catch (\Exception $e) {
+        tm_json_error('设置失败: ' . $e->getMessage(), 500);
+    }
 }
 
 if ($path === '/api/auth/login' && $method === 'POST') {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    if (!tm_check_login_rate($ip)) {
-        tm_json_error('尝试次数过多，请300秒后再试', 429);
+    try {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        if (!tm_check_login_rate($ip)) {
+            tm_json_error('尝试次数过多，请300秒后再试', 429);
+        }
+        $password = $input['password'] ?? '';
+        $stored_hash = tm_get_password_hash();
+        if (!$stored_hash) tm_json_error('请先设置密码', 400);
+        if (!tm_verify_password($password, $stored_hash)) {
+            $remaining = tm_get_remaining_attempts($ip);
+            tm_json_error("密码错误，剩余尝试次数: $remaining", 401);
+        }
+        $token = tm_create_session();
+        tm_json_response(['status' => 'ok', 'token' => $token]);
+    } catch (\Exception $e) {
+        tm_json_error('登录失败: ' . $e->getMessage(), 500);
     }
-    $password = $input['password'] ?? '';
-    $stored_hash = tm_get_password_hash();
-    if (!$stored_hash) tm_json_error('请先设置密码', 400);
-    if (!tm_verify_password($password, $stored_hash)) {
-        $remaining = tm_get_remaining_attempts($ip);
-        tm_json_error("密码错误，剩余尝试次数: $remaining", 401);
-    }
-    $token = tm_create_session();
-    tm_json_response(['status' => 'ok', 'token' => $token]);
 }
 
 if ($path === '/api/auth/logout' && $method === 'POST') {
@@ -76,16 +84,20 @@ if ($path === '/api/auth/logout' && $method === 'POST') {
 
 if ($path === '/api/auth/change-password' && $method === 'POST') {
     $token = tm_require_auth();
-    $old_password = $input['old_password'] ?? '';
-    $new_password = $input['new_password'] ?? '';
-    if (!$new_password || strlen($new_password) < 4) tm_json_error('新密码至少4位', 400);
-    $stored_hash = tm_get_password_hash();
-    if ($stored_hash && !tm_verify_password($old_password, $stored_hash)) {
-        tm_json_error('原密码错误', 401);
+    try {
+        $old_password = $input['old_password'] ?? '';
+        $new_password = $input['new_password'] ?? '';
+        if (!$new_password || strlen($new_password) < 4) tm_json_error('新密码至少4位', 400);
+        $stored_hash = tm_get_password_hash();
+        if ($stored_hash && !tm_verify_password($old_password, $stored_hash)) {
+            tm_json_error('原密码错误', 401);
+        }
+        tm_set_password_hash(tm_hash_password($new_password));
+        tm_destroy_all_sessions_except($token);
+        tm_json_response(['status' => 'ok', 'message' => '密码已修改，其他设备已登出']);
+    } catch (\Exception $e) {
+        tm_json_error('修改失败: ' . $e->getMessage(), 500);
     }
-    tm_set_password_hash(tm_hash_password($new_password));
-    tm_destroy_all_sessions_except($token);
-    tm_json_response(['status' => 'ok', 'message' => '密码已修改，其他设备已登出']);
 }
 
 // 监控 API（公开）

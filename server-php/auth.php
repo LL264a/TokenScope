@@ -28,7 +28,12 @@ function tm_save_sessions(array $sessions) {
 }
 
 function tm_create_session(): string {
-    $token = bin2hex(random_bytes(32));
+    // 优先用 random_bytes，失败则降级
+    try {
+        $token = bin2hex(random_bytes(32));
+    } catch (\Exception $e) {
+        $token = bin2hex(openssl_random_pseudo_bytes(32));
+    }
     $sessions = tm_load_sessions();
     $sessions[$token] = ['expire' => time() + TM_SESSION_EXPIRE, 'created' => time()];
     tm_save_sessions($sessions);
