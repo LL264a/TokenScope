@@ -24,8 +24,9 @@
 ├── config.php         # 配置
 ├── db.php             # 数据库
 ├── auth.php           # 认证
-├── collectors.php     # 数据采集（腾讯/火山/小米）
+├── collectors.php     # 数据采集（腾讯/火山/小米/DeepSeek）
 ├── cron.php           # 定时采集入口
+├── receive.php        # 接收 Python 实例推送数据
 ├── index.html         # 前端页面
 └── data/              # 自动创建（SQLite + 会话文件）
 ```
@@ -101,7 +102,7 @@ mkdir -p data && chmod 755 data
 A: Nginx 没配置 `try_files`，请检查第 2 步
 
 **Q: 页面空白**
-A: 检查 PHP 版本 >= 7.4，需要 `hash_pbkdf2` 函数
+A: 检查 PHP 版本 >= 8.2
 
 **Q: 采集失败**
 A: Cookie 过期了，需要重新从浏览器复制粘贴
@@ -111,3 +112,11 @@ A: 需要配置 AK/SK（火山引擎控制台 → 安全认证），在管理页
 
 **Q: data 目录没写权限**
 A: `chmod 755 data && chown www:www data`
+
+## 🔄 从本地 Python 实例推送数据
+
+如果你本地有 Python TokenScope 在跑，可以定时推送到服务器：
+
+1. 修改 `push_to_server.py` 中的 `SERVER_URL` 和 `TOKEN`
+2. 修改 `server-php/receive.php` 中的 `RECEIVE_TOKEN` 保持一致
+3. 运行: `python push_to_server.py --daemon 300`（每5分钟推送一次）
