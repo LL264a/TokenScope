@@ -850,7 +850,7 @@ function tm_do_refresh_all(): array {
         $cred_data = tm_get_merged_credential_data($platform);
         if (!$cred_data) continue;
 
-        $cookie_str = json_encode($cred_data, JSON_UNESCAPED_UNICODE);
+        $cookie_str = isset($cred_data['raw']) ? $cred_data['raw'] : json_encode($cred_data, JSON_UNESCAPED_UNICODE);
         $start = microtime(true);
 
         try {
@@ -905,7 +905,7 @@ function tm_do_refresh_platform(string $platform): array {
     $cred_data = tm_get_merged_credential_data($platform);
     if (!$cred_data) return [$platform => ['status' => 'error', 'error' => '无凭证']];
 
-    $cookie_str = json_encode($cred_data, JSON_UNESCAPED_UNICODE);
+    $cookie_str = isset($cred_data['raw']) ? $cred_data['raw'] : json_encode($cred_data, JSON_UNESCAPED_UNICODE);
     $start = microtime(true);
 
     try {
@@ -958,7 +958,7 @@ function tm_do_check_credential(string $platform): array {
     $cred_data = tm_get_merged_credential_data($platform);
     if (!$cred_data) return ['status' => 'error', 'error' => '无凭证', 'platform' => $platform];
 
-    $cookie_str = json_encode($cred_data, JSON_UNESCAPED_UNICODE);
+    $cookie_str = isset($cred_data['raw']) ? $cred_data['raw'] : json_encode($cred_data, JSON_UNESCAPED_UNICODE);
     $start = microtime(true);
 
     try {

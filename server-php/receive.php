@@ -51,15 +51,18 @@ try {
             $platform = $p['platform'] ?? '';
             if (!$platform) continue;
 
-            // 处理聚合平台（tencent/volcano 带 services）
+            // 跳过 no_data 占位卡（有凭证无数据，不写入 DB）
+            if ($p['no_data'] ?? false) continue;
+
+            // 处理聚合平台（tencent/volcano 带 services）→ 拆分子服务分别保存
             $services = $p['services'] ?? null;
-            if ($services !== null && $p['no_data'] !== true) {
-                // 遍历子服务分别保存
+            if ($services !== null) {
                 foreach ($services as $svc) {
                     _save_platform($db, $svc);
                     $inserted++;
                 }
             } else {
+                // 独立平台（xiaomi/deepseek）→ 直接保存
                 _save_platform($db, $p);
                 $inserted++;
             }
