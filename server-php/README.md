@@ -1,8 +1,19 @@
-# Token Monitor v1.6.3 PHP 版 - 部署指南
+# Token Monitor v1.7.0 PHP 版 - 部署指南
 
 ## 🎯 一句话
 
 把文件丢进宝塔网站目录，加一行 Nginx 配置，设一个 cron 任务，完事。
+
+## 📦 环境要求
+
+| 依赖 | 要求 | 说明 |
+|------|------|------|
+| PHP | ≥ 8.2 | `match` 表达式、联合类型 |
+| SQLite3 | PHP 内置 | 数据 + 会话持久化 |
+| cURL | PHP 内置 | HTTP 请求 |
+| OpenSSL | PHP 内置 | PBKDF2-SHA256 |
+| Web Server | Nginx / Apache | try_files 路由 |
+| 磁盘 | ~10MB | SQLite 数据库 |
 
 ## 📁 文件列表
 
@@ -82,6 +93,7 @@ mkdir -p data && chmod 755 data
 | 腾讯云 | `{"cookie":"完整Cookie","uin":"QQ号","ownerUin":"同uin","csrfCode":"940711892"}` |
 | 火山引擎 | Cookie 字符串（含 csrfToken），如需查余额可加 AK/SK |
 | 小米 MIMO | Cookie 字符串（登录 platform.xiaomimimo.com 后复制） |
+| DeepSeek | API Key: `sk-xxx`（查余额）；Token: 登录后 F12→LocalStorage→userToken 复制（查用量明细） |
 
 ## ⚠️ 常见问题
 
