@@ -134,6 +134,11 @@ function tm_get_merged_credential_data(string $platform): ?array {
     if (!$creds) return null;
     $merged = [];
     foreach ($creds as $cred) {
+        // token 类型不做 JSON 展开，保持原值
+        if ($cred['credential_type'] === 'token') {
+            $merged['token'] = $cred['credential_data'];
+            continue;
+        }
         $decoded = json_decode($cred['credential_data'], true);
         if (is_array($decoded)) {
             $merged = array_merge($merged, $decoded);
@@ -265,4 +270,108 @@ function tm_get_password_hash(): string {
 
 function tm_set_password_hash(string $hash) {
     tm_set_setting('admin_password_hash', $hash);
+}
+
+// ============ API 密钥（TOTP 两步验证） ============
+
+function tm_init_api_keys_table() {
+    $db = tm_get_db();
+    $db->exec("CREATE TABLE IF NOT EXISTS api_keys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        secret TEXT NOT NULL,
+        last_used INTEGER DEFAULT 0,
+        last_totp INTEGER DEFAULT 0,
+        created_at INTEGER DEFAULT (strftime('%s','now')),
+        revoked INTEGER DEFAULT 0
+    )");
+}
+
+function tm_create_api_key(string $name): array {
+    $db = tm_get_db();
+    tm_init_api_keys_table();
+    $random = random_bytes(20);
+    $chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    $secret = "";
+    for ($i = 0; $i < 20; $i++) {
+        $secret .= $chars[ord($random[$i]) & 31];
+    }
+    $formatted = chunk_split($secret, 4, " ");
+    $db->prepare("INSERT INTO api_keys (name, secret) VALUES (?, ?)")->execute([$name, $secret]);
+    $id = $db->lastInsertId();
+    return ["id" => $id, "name" => $name, "secret" => $secret, "formatted" => trim($formatted)];
+}
+
+function tm_list_api_keys(): array {
+    $db = tm_get_db();
+    tm_init_api_keys_table();
+    $rows = $db->query("SELECT id, name, last_used, created_at, revoked FROM api_keys ORDER BY id")->fetchAll();
+    foreach ($rows as &$r) {
+        if ($r["last_used"]) $r["last_used_fmt"] = date("Y-m-d H:i:s", $r["last_used"]);
+        $r["created_at_fmt"] = date("Y-m-d H:i:s", $r["created_at"]);
+    }
+    return $rows;
+}
+
+function tm_revoke_api_key(int $id): bool {
+    $db = tm_get_db();
+    tm_init_api_keys_table();
+    $stmt = $db->prepare("UPDATE api_keys SET revoked=1 WHERE id=?");
+    $stmt->execute([$id]);
+    return $stmt->rowCount() > 0;
+}
+
+function tm_verify_totp(string $secret, string $totp_str): bool {
+    $secret = str_replace(" ", "", strtoupper(trim($secret)));
+    $totp_str = trim($totp_str);
+    if (!preg_match("/^\d{6}$/", $totp_str)) return false;
+
+    $chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    $bits = "";
+    for ($i = 0; $i < strlen($secret); $i++) {
+        $pos = strpos($chars, $secret[$i]);
+        if ($pos === false) return false;
+        $bits .= str_pad(decbin($pos), 5, "0", STR_PAD_LEFT);
+    }
+    $bytes = "";
+    for ($i = 0; $i < strlen($bits); $i += 8) {
+        $byte = substr($bits, $i, 8);
+        if (strlen($byte) < 8) break;
+        $bytes .= chr(bindec($byte));
+    }
+
+    $window = intdiv(time(), 30);
+    for ($offset = -1; $offset <= 1; $offset++) {
+        $counter = $window + $offset;
+        $packed = pack("J", $counter);
+        $hmac = hash_hmac("sha1", $packed, $bytes, true);
+        $offset4 = ord($hmac[19]) & 0xf;
+        $code = ((ord($hmac[$offset4]) & 0x7f) << 24)
+              | ((ord($hmac[$offset4+1]) & 0xff) << 16)
+              | ((ord($hmac[$offset4+2]) & 0xff) << 8)
+              | (ord($hmac[$offset4+3]) & 0xff);
+        if (str_pad($code % 1000000, 6, "0", STR_PAD_LEFT) === $totp_str) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function tm_verify_api_totp(): ?string {
+    $key_name = $_SERVER["HTTP_X_TOTP_KEY"] ?? "";
+    $totp_code = $_SERVER["HTTP_X_TOTP_CODE"] ?? "";
+    if (!$key_name || !$totp_code) return null;
+
+    $db = tm_get_db();
+    tm_init_api_keys_table();
+    $stmt = $db->prepare("SELECT id, secret, last_totp, revoked FROM api_keys WHERE name=?");
+    $stmt->execute([$key_name]);
+    $row = $stmt->fetch();
+    if (!$row || $row["revoked"]) return null;
+
+    if (!tm_verify_totp($row["secret"], $totp_code)) return null;
+
+    $current_window = intdiv(time(), 30);
+    $db->prepare("UPDATE api_keys SET last_used=?, last_totp=? WHERE id=?")->execute([time(), $current_window, $row["id"]]);
+    return $key_name;
 }

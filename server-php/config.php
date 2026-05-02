@@ -1,10 +1,10 @@
 <?php
 /**
- * Token Monitor v1.6.3 - 配置文件
+ * Token Monitor v1.8.0 - 配置文件
  */
 
 // ============ 版本 ============
-define('APP_VERSION', 'v1.7.0');
+define('APP_VERSION', 'v1.8.0');
 
 // ============ 路径 ============
 define('TM_ROOT', __DIR__);
@@ -86,3 +86,13 @@ define('TM_LOGIN_MAX_ATTEMPTS', 5);
 define('TM_LOGIN_WINDOW', 300); // 5分钟
 define('TM_PBKDF2_ITERATIONS', 200000);
 define('TM_PBKDF2_SALT', getenv('TOKEN_MONITOR_SALT') ?: 'token_monitor_2026_production_salt');
+
+// ============ 通用 JSON 响应函数 ============
+function tm_json_response($data, int $code=200) {
+    http_response_code($code);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+function tm_json_error(string $msg, int $code=400) {
+    tm_json_response(['detail' => $msg], $code);
+}

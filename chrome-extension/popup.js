@@ -39,38 +39,13 @@ function toast(msg, type) {
   log(type || 'info', msg);
 }
 
-// ============ TOTP（使用浏览器 crypto.subtle） ============
-function base32Decode(str) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  str = str.replace(/\s/g, '').toUpperCase();
-  let bits = 0, bitLen = 0, bytes = [];
-  for (let i = 0; i < str.length; i++) {
-    const pos = chars.indexOf(str[i]);
-    if (pos === -1) continue;
-    bits = (bits << 5) | pos;
-    bitLen += 5;
-    if (bitLen >= 8) { bitLen -= 8; bytes.push((bits >> bitLen) & 0xff); }
-  }
-  return new Uint8Array(bytes);
-}
-
-async function generateTotp(secret) {
-  const key = base32Decode(secret);
-  const counter = Math.floor(Date.now() / 30000);
-  const counterBuf = new ArrayBuffer(8);
-  new DataView(counterBuf).setBigUint64(0, BigInt(counter), false);
-  const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
-  const hmac = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, new Uint8Array(counterBuf)));
-  const offset = hmac[19] & 0xf;
-  const code = ((hmac[offset] & 0x7f) << 24) | ((hmac[offset + 1] & 0xff) << 16) | ((hmac[offset + 2] & 0xff) << 8) | (hmac[offset + 3] & 0xff);
-  return String(code % 1000000).padStart(6, '0');
-}
-
+// ============ TOTP API（走 background 计算，传密钥参数） ============
 async function totpApi(method, path, body) {
   if (!totpSecret) return { error: '未配置密钥' };
   try {
-    const totp = await generateTotp(totpSecret);
-    const headers = { 'Content-Type': 'application/json', 'X-TOTP-Key': totpKeyName, 'X-TOTP-Code': totp };
+    const respTotp = await chrome.runtime.sendMessage({ action: 'generate_totp', secret: totpSecret, keyName: totpKeyName });
+    if (respTotp.error) return respTotp;
+    const headers = { 'Content-Type': 'application/json', 'X-TOTP-Key': totpKeyName, 'X-TOTP-Code': respTotp.code };
     const resp = await fetch(API_BASE + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
     if (resp.status === 401) return { error: '密钥无效或已吊销' };
     const data = await resp.json();

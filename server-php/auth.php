@@ -126,12 +126,18 @@ function tm_verify_internal_key(string $key): bool {
 // ============ 认证检查 ============
 
 function tm_require_auth(): ?string {
-    // 1. 检查 X-Internal-Key
+    // 1. 检查 TOTP 两步验证（插件用）
+    $totp_key = $_SERVER['HTTP_X_TOTP_KEY'] ?? '';
+    if ($totp_key) {
+        $key_name = tm_verify_api_totp();
+        if ($key_name) return "totp:$key_name";
+    }
+    // 2. 检查 X-Internal-Key
     $internal_key = $_SERVER['HTTP_X_INTERNAL_KEY'] ?? '';
     if ($internal_key && tm_verify_internal_key($internal_key)) {
         return 'internal';
     }
-    // 2. 检查 Bearer Token
+    // 3. 检查 Bearer Token
     $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
     if (strpos($auth, 'Bearer ') === 0) {
         $token = substr($auth, 7);

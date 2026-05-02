@@ -26,8 +26,8 @@ if ($base !== '/' && strpos($path, $base) === 0) {
 }
 $path = rtrim($path, '/') ?: '/';
 
-// 获取请求体
-$input = json_decode(file_get_contents('php://input'), true) ?: [];
+// 获取请求体（优先用 index.php 已经解析的，避免 php://input 二次消费）
+$input = $GLOBALS['_INDEX_INPUT'] ?? (json_decode(file_get_contents('php://input'), true) ?: []);
 
 // ============ 路由分发 ============
 
@@ -279,16 +279,6 @@ if ($path === '/api/admin/hidden-services/show' && $method === 'POST') {
 tm_json_error('Not Found', 404);
 
 // ============ 辅助函数 ============
-
-function tm_json_response($data, int $code=200) {
-    http_response_code($code);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
-function tm_json_error(string $msg, int $code=400) {
-    tm_json_response(['detail' => $msg], $code);
-}
 
 function tm_api_stats() {
     $sub_data = tm_get_latest_usage();

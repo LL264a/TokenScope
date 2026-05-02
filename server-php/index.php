@@ -19,6 +19,8 @@ if ($script_dir !== '/' && strpos($uri, $script_dir) === 0) {
 $uri = rtrim($uri, '/') ?: '/';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
+// 传给 api.php（避免 php://input 二次消费）
+$GLOBALS['_INDEX_INPUT'] = $input;
 
 // API 路由
 if (strpos($uri, '/api/') === 0) {
@@ -43,22 +45,28 @@ if (strpos($uri, '/api/') === 0) {
         exit;
     }
 
-    // TOTP 密钥管理（独立 require，避免与 api.php 路由冲突）
-    if (strpos($uri, "/api/admin/api_keys") === 0) {
+    // TOTP 密钥管理 + 平台配置（独立 require，避免与 api.php 路由冲突）
+    if (strpos($uri, "/api/admin/api_keys") === 0 || $uri === "/api/admin/platforms") {
         require_once __DIR__ . "/config.php";
         require_once __DIR__ . "/db.php";
         require_once __DIR__ . "/auth.php";
         header("Content-Type: application/json; charset=utf-8");
         tm_require_auth();
 
-        if ($method === "GET") {
-            echo json_encode(tm_list_api_keys(), JSON_UNESCAPED_UNICODE);
-        } elseif ($method === "POST") {
-            $name = $input["name"] ?? "Chrome Extension " . date("Y-m-d");
-            echo json_encode(tm_create_api_key($name), JSON_UNESCAPED_UNICODE);
-        } elseif ($method === "DELETE" && preg_match("#^/api/admin/api_keys/(\d+)$#", $uri, $m)) {
-            if (tm_revoke_api_key(intval($m[1]))) echo json_encode(["status"=>"ok","message"=>"已吊销"]);
-            else echo json_encode(["detail"=>"not found"]);
+        if ($uri === "/api/admin/platforms" && $method === "GET") {
+            echo json_encode(TM_PLATFORMS, JSON_UNESCAPED_UNICODE);
+        } elseif (strpos($uri, "/api/admin/api_keys") === 0) {
+            if ($method === "GET") {
+                echo json_encode(tm_list_api_keys(), JSON_UNESCAPED_UNICODE);
+            } elseif ($method === "POST") {
+                $name = $input["name"] ?? "Chrome Extension " . date("Y-m-d");
+                echo json_encode(tm_create_api_key($name), JSON_UNESCAPED_UNICODE);
+            } elseif ($method === "DELETE" && preg_match("#^/api/admin/api_keys/(\d+)$#", $uri, $m)) {
+                if (tm_revoke_api_key(intval($m[1]))) echo json_encode(["status"=>"ok","message"=>"已吊销"]);
+                else echo json_encode(["detail"=>"not found"]);
+            } else {
+                http_response_code(405); echo json_encode(["detail"=>"Method Not Allowed"]);
+            }
         } else {
             http_response_code(405); echo json_encode(["detail"=>"Method Not Allowed"]);
         }

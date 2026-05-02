@@ -633,23 +633,39 @@ function tm_xiaomi_api_get(string $url, array $headers): ?array {
 // ============ DeepSeek 采集 ============
 
 function tm_collect_deepseek(string $cookie_str): array {
-    // 解析凭证: JSON 格式或纯文本
+    // 解析凭证: JSON 格式、Netscape 格式、或纯文本
     $cred = json_decode($cookie_str, true);
     if (!is_array($cred)) {
         $raw = trim($cookie_str);
-        if (strpos($raw, 'sk-') === 0) {
+        // Netscape 格式：提取 Cookie 值
+        if (strpos($raw, "\t") !== false || strpos($raw, '# Netscape') === 0) {
+            $cookies = [];
+            foreach (explode("\n", $raw) as $line) {
+                $line = trim($line);
+                if ($line === '' || strpos($line, '#') === 0) continue;
+                $parts = explode("\t", $line);
+                if (count($parts) >= 7) {
+                    $cookies[] = trim($parts[5]) . '=' . trim($parts[6], '"');
+                }
+            }
+            $cred = ['cookie' => implode('; ', $cookies)];
+        } elseif (strpos($raw, 'sk-') === 0) {
             $cred = ['api_key' => $raw];
+        } elseif (strlen($raw) > 20) {
+            // 可能是 Token
+            $cred = ['token' => $raw, 'cookie' => $raw];
         } else {
-            $cred = ['token' => $raw];
+            $cred = ['cookie' => $raw];
         }
     }
 
     $api_key = $cred['api_key'] ?? '';
     $token = $cred['token'] ?? '';
+    $cookie = $cred['cookie'] ?? '';
     $raw = $cred['raw'] ?? '';
 
     // raw 兜底
-    if (!$api_key && !$token && $raw) {
+    if (!$api_key && !$token && !$cookie && $raw) {
         $raw = trim($raw);
         if (strpos($raw, 'sk-') === 0) {
             $api_key = $raw;
@@ -658,15 +674,9 @@ function tm_collect_deepseek(string $cookie_str): array {
         }
     }
 
-    // 模式1: API Key → 查余额
-    if ($api_key && !$token) {
-        return tm_collect_deepseek_balance($api_key);
-    }
-
-    // 模式2: Token → 查用量明细
+    // 模式1: 有 Token → 查用量明细（如果有 API Key 也查余额）
     if ($token) {
         $result = tm_collect_deepseek_usage($token);
-        // 同时有 API Key，合并余额
         if ($api_key && !isset($result[0]['error'])) {
             $balance = tm_collect_deepseek_balance($api_key);
             if (!isset($balance[0]['error'])) {
@@ -676,6 +686,19 @@ function tm_collect_deepseek(string $cookie_str): array {
             }
         }
         return $result;
+    }
+
+    // 模式2: 只有 API Key → 查余额
+    if ($api_key) {
+        return tm_collect_deepseek_balance($api_key);
+    }
+
+    // 模式3: Cookie → 尝试当 token 查用量
+    if ($cookie) {
+        $result = tm_collect_deepseek_usage($cookie);
+        if (!isset($result[0]['error'])) {
+            return $result;
+        }
     }
 
     return [tm_error_item('deepseek', '请提供 API Key 或 Token')];
@@ -733,6 +756,11 @@ function tm_collect_deepseek_balance(string $api_key): array {
  * 模式2: UserToken 查用量明细
  */
 function tm_collect_deepseek_usage(string $token): array {
+    // userToken 可能是 JSON 格式 {"value":"xxx"} 或纯文本
+    $parsed = json_decode($token, true);
+    if (is_array($parsed) && isset($parsed['value'])) {
+        $token = $parsed['value'];
+    }
     $headers = [
         'Authorization' => "Bearer $token",
         'Accept' => 'application/json',
