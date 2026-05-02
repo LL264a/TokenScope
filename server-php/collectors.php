@@ -65,6 +65,22 @@ function tm_extract_cookie_value(string $cookie_str, string $key): string {
     return '';
 }
 
+function tm_parse_netscape(string $netscape): string {
+    $pairs = [];
+    foreach (explode("\n", $netscape) as $line) {
+        $line = trim($line);
+        if ($line === '' || strpos($line, '#') === 0) continue;
+        $parts = explode("\t", $line);
+        if (count($parts) >= 7) {
+            $name = trim($parts[5]);
+            $value = trim($parts[6]);
+            $value = trim($value, '"');
+            $pairs[] = $name . '=' . $value;
+        }
+    }
+    return implode('; ', $pairs);
+}
+
 function tm_fmt_tokens(int $n): string {
     if ($n >= 100000000) return number_format($n / 100000000, 1) . '亿';
     if ($n >= 10000) return number_format($n / 10000, 1) . '万';
@@ -499,6 +515,11 @@ function tm_collect_xiaomi(string $cookie_str): array {
     $cred = json_decode($cookie_str, true);
     if (!is_array($cred)) $cred = ['cookie' => $cookie_str];
     $cookie = $cred['cookie'] ?? '';
+    // Netscape 格式转 Cookie 头
+    if ($cookie && (strpos($cookie, "\t") !== false || strpos($cookie, '# Netscape') === 0)) {
+        $parsed = tm_parse_netscape($cookie);
+        if ($parsed) $cookie = $parsed;
+    }
     if (!$cookie) return [tm_error_item('xiaomi', 'Cookie为空，请先登录小米MiMo平台')];
 
     $headers = [

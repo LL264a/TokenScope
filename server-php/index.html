@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <title>Token 监控面板</title>
-    <script>/* 版本号 */ const APP_VERSION = 'v1.7.0';</script>
+    <script>/* 版本号 */ const APP_VERSION = 'v1.7.1';</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -433,10 +433,10 @@
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 12px;background:rgba(15,23,42,0.5);border-radius:8px">
                             <span style="font-size:13px;color:#94a3b8">⚡ 实时排序</span>
                             <label class="toggle-switch" style="position:relative;display:inline-block;width:40px;height:22px">
-                                <input type="checkbox" id="sort-mode-toggle" onchange="toggleSortMode()" style="opacity:0;width:0;height:0">
+                                <input type="checkbox" id="sort_mode-toggle" onchange="toggleSortMode()" style="opacity:0;width:0;height:0">
                                 <span class="toggle-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#1e293b;border-radius:11px;transition:0.3s"></span>
                             </label>
-                            <span id="sort-mode-label" style="font-size:12px;color:#64748b">权重排序</span>
+                            <span id="sort_mode-label" style="font-size:12px;color:#64748b">权重排序</span>
                         </div>
                         <div style="font-size:12px;color:#64748b;margin-bottom:12px">开启后按数据活跃度排序，关闭后按下方权重排序</div>
                         <div id="sort-weight-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
@@ -448,6 +448,20 @@
                         <h3>👁️ 已隐藏的服务</h3>
                         <div style="font-size:12px;color:#64748b;margin-bottom:12px">在监控页点击子服务的 ✕ 按钮可隐藏，此处可恢复</div>
                         <div id="hidden-services-list" style="display:flex;flex-direction:column;gap:6px"></div>
+                    </div>
+
+                    <!-- API 密钥（TOTP） -->
+                    <div class="admin-card">
+                        <h3>🔑 API 密钥</h3>
+                        <div style="font-size:12px;color:#94a3b8;margin-bottom:12px">插件免密码认证。生成后复制密钥到插件即可使用</div>
+                        <div class="form-group">
+                            <label>备注名称</label>
+                            <input type="text" id="api-key-name" placeholder="如: Chrome 插件" value="Chrome Extension">
+                        </div>
+                        <button class="btn btn-primary" onclick="createApiKey()" style="margin-bottom:12px">➕ 生成新密钥</button>
+                        <div id="api-key-list" style="font-size:13px">
+                            <div style="color:#64748b;padding:6px 0">加载中...</div>
+                        </div>
                     </div>
 
                     <!-- 修改密码 -->
@@ -1163,7 +1177,7 @@ let platformConfigs = {};
 async function loadAdminData() {
     if (!isLoggedIn) return;
     try {
-        await Promise.all([loadCredentials(), loadSchedulerStatus(), loadRefreshLog(), loadPlatformConfigs(), loadSortWeights(), loadSortMode(), loadHiddenServices()]);
+        await Promise.all([loadCredentials(), loadSchedulerStatus(), loadRefreshLog(), loadPlatformConfigs(), loadSortWeights(), loadSortMode(), loadHiddenServices(), loadApiKeys()]);
     } catch(e) {
         console.error('加载管理数据失败:', e);
     }
@@ -1251,10 +1265,10 @@ async function saveSortWeights() {
 
 async function loadSortMode() {
     try {
-        const resp = await authFetch('/api/admin/sort-mode');
+        const resp = await authFetch('/api/admin/sort_mode');
         const data = await resp.json();
-        const toggle = document.getElementById('sort-mode-toggle');
-        const label = document.getElementById('sort-mode-label');
+        const toggle = document.getElementById('sort_mode-toggle');
+        const label = document.getElementById('sort_mode-label');
         if (toggle && label) {
             const isRealtime = data.mode === 'realtime';
             toggle.checked = isRealtime;
@@ -1264,11 +1278,11 @@ async function loadSortMode() {
 }
 
 async function toggleSortMode() {
-    const toggle = document.getElementById('sort-mode-toggle');
-    const label = document.getElementById('sort-mode-label');
+    const toggle = document.getElementById('sort_mode-toggle');
+    const label = document.getElementById('sort_mode-label');
     const mode = toggle.checked ? 'realtime' : 'weight';
     try {
-        const resp = await authFetch('/api/admin/sort-mode', {
+        const resp = await authFetch('/api/admin/sort_mode', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({mode})
@@ -1399,7 +1413,12 @@ async function deleteCredential(platform) {
     try {
         const resp = await authFetch('/api/admin/credentials/'+platform, {method:'DELETE'});
         const result = await resp.json();
-        if (result.status==='ok') { toast('已删除', 'success'); loadCredentials(); }
+        if (result.status==='ok') {
+            toast('已删除', 'success');
+            loadCredentials();
+            // 删除后立即刷新该平台数据，清空前台显示
+            await checkAndRefreshAfterSave(platform);
+        }
         else { toast(result.error||'删除失败', 'error'); }
     } catch(e) { if (e.message !== '未授权') toast('请求失败', 'error'); }
 }
@@ -1408,7 +1427,7 @@ async function checkCredential(platform) {
     const resultEl = document.getElementById('check-result-'+platform);
     resultEl.innerHTML = '<span class="cred-check-loading">⏳ 检查中...</span>';
     try {
-        const resp = await authFetch('/api/admin/check-credential/'+platform, {method:'POST'});
+        const resp = await authFetch('/api/admin/check_credential', {method:'POST', body: JSON.stringify({platform})});
         const result = await resp.json();
         if (result.error && !result.details) {
             resultEl.innerHTML = '<div class="cred-check-result cred-check-fail">❌ '+escHtml(result.error)+'</div>';
@@ -1483,6 +1502,85 @@ async function doUpdateCred(platform, credType) {
     } catch(e) {
         if (e.message !== '未授权') toast('请求失败: '+e.message, 'error');
     }
+}
+
+// ============ API 密钥管理（TOTP） ============
+async function loadApiKeys() {
+    const el = document.getElementById('api-key-list');
+    if (!el) return;
+    try {
+        const resp = await authFetch('/api/admin/api_keys');
+        const keys = await resp.json();
+        if (!keys.length) { el.innerHTML = '<div style="color:#64748b;padding:6px 0">暂无密钥</div>'; return; }
+        el.innerHTML = keys.map(function(k) {
+            var dot = k.revoked ? '🔴 已吊销' : '🟢 有效';
+            var actions = k.revoked ? '' : '<button class="btn btn-danger" style="font-size:11px;padding:2px 8px;margin-left:8px" onclick="revokeApiKey('+k.id+')">吊销</button>';
+            return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1e293b">' +
+                '<span>'+escHtml(k.name)+'</span>' +
+                '<span style="font-size:11px;color:#64748b">'+dot+'</span>' +
+                '<span style="font-size:11px;color:#64748b;margin-left:auto">'+escHtml(k.created_at_fmt||'')+'</span>' +
+                actions +
+                '</div>';
+        }).join('');
+    } catch(e) {
+        el.innerHTML = '<div style="color:#ef4444;padding:6px 0">加载失败</div>';
+    }
+}
+
+async function createApiKey() {
+    var name = document.getElementById('api-key-name').value.trim() || 'Chrome Extension';
+    try {
+        var resp = await authFetch('/api/admin/api_keys', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name}) });
+        var data = await resp.json();
+        if (data.id) {
+            toast('密钥已生成', 'success');
+            var keyStr = data.name+'|'+data.secret;
+            window._lastKeyStr = keyStr;
+
+            var keyList = document.getElementById('api-key-list');
+            var greenHtml =
+                '<div id="new-key-box" style="background:#064e3b;border:1px solid #059669;border-radius:8px;padding:12px;margin-bottom:8px">' +
+                '<div style="font-size:11px;color:#6ee7b7;margin-bottom:4px">⚠️ 关闭后无法再次查看，请立即复制到插件</div>' +
+                '<div style="background:#0f172a;color:#4ade80;padding:8px 12px;border-radius:6px;font-family:monospace;font-size:13px;word-break:break-all;user-select:all">'+escHtml(keyStr)+'</div>' +
+                '<div style="margin-top:8px"><button class="btn btn-primary" onclick="copyApiKey()">📋 复制到剪贴板</button></div>' +
+                '</div>';
+
+            // 清除旧绿色框，插入新绿色框到最顶部
+            var oldBox = document.getElementById('new-key-box');
+            if (oldBox) oldBox.remove();
+            var temp = document.createElement('div');
+            temp.innerHTML = greenHtml;
+            keyList.prepend(temp.firstElementChild);
+        } else {
+            toast(data.detail || '生成失败', 'error');
+        }
+    } catch(e) {
+        toast('请求失败', 'error');
+    }
+}
+
+function copyApiKey() {
+    if (window._lastKeyStr) {
+        navigator.clipboard.writeText(window._lastKeyStr);
+        toast('密钥已复制到剪贴板', 'success');
+        // 复制后自动关闭绿色提示框
+        var box = document.getElementById('new-key-box');
+        if (box) {
+            box.style.transition = 'opacity 0.3s';
+            box.style.opacity = '0';
+            setTimeout(function() { if (box && box.parentNode) box.parentNode.removeChild(box); }, 300);
+        }
+    }
+}
+
+async function revokeApiKey(id) {
+    if (!confirm('确定吊销此密钥？')) return;
+    try {
+        var resp = await authFetch('/api/admin/api_keys/'+id, { method:'DELETE' });
+        var data = await resp.json();
+        if (data.status==='ok') { toast('已吊销', 'success'); loadApiKeys(); }
+        else { toast(data.detail||'吊销失败', 'error'); }
+    } catch(e) { toast('请求失败', 'error'); }
 }
 
 async function loadSchedulerStatus() {
