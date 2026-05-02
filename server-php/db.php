@@ -77,7 +77,8 @@ function tm_get_latest_usage(): array {
     $extra_keys = ['quotas','plan_type','plan_code','remaining_days','valid_from','valid_to','plan_status',
         'remaining_pct','balance_available','balance_cash','balance_credit','balance_frozen','balance_arrears',
         'balance','gift_balance','cash_balance','frozen_balance','cache_tokens','tpm','rpm','current_month_cost',
-        'month_used','month_limit','month_pct','plan_pct','comp_total','comp_used','comp_pct','auto_renew','plan_name'];
+        'month_used','month_limit','month_pct','plan_pct','comp_total','comp_used','comp_pct','auto_renew','plan_name',
+        'cost_total','monthly_cost','model_usages','granted_balance','topped_up_balance'];
 
     foreach ($rows as $row) {
         $item = $row;

@@ -33,15 +33,20 @@ if (strpos($uri, '/api/') === 0) {
     header("Access-Control-Max-Age: 86400");
     if ($method === "OPTIONS") { http_response_code(204); exit; }
 
-    // 公开平台配置
+    // 公开平台配置（只返回有凭证的平台）
     if ($uri === "/api/platforms" && $method === "GET") {
         header("Content-Type: application/json; charset=utf-8");
-        echo json_encode([
+        require_once __DIR__ . "/db.php";
+        $all = [
             ["id"=>"deepseek","name"=>"DeepSeek","url"=>"https://platform.deepseek.com/usage","domains"=>[".deepseek.com"]],
             ["id"=>"tencent","name"=>"腾讯云","url"=>"https://console.cloud.tencent.com/tokenhub/codingplan","domains"=>[".cloud.tencent.com",".tencent.com"]],
             ["id"=>"volcano","name"=>"火山引擎","url"=>"https://console.volcengine.com/ark/region:ark+cn-beijing/plan","domains"=>[".volcengine.com"]],
             ["id"=>"xiaomi","name"=>"小米 MIMO","url"=>"https://platform.xiaomimimo.com/console/plan-manage","domains"=>[".xiaomimimo.com"]],
-        ]);
+        ];
+        $db = tm_get_db();
+        $rows = $db->query("SELECT DISTINCT platform FROM credentials")->fetchAll(PDO::FETCH_COLUMN);
+        $result = array_values(array_filter($all, fn($p) => in_array($p['id'], $rows)));
+        echo json_encode($result);
         exit;
     }
 

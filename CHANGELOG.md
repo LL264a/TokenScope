@@ -1,6 +1,14 @@
 # Changelog
 
-## v1.8.0 (2026-05-03)
+## v1.8.1 (2026-05-03)
+
+### Server
+
+- **/api/platforms 按凭证过滤**: 只返回有凭证的平台（deepseek + xiaomi），content.js 和 popup.js 自动跟着走，不再采集无凭证的平台（腾讯云、火山引擎）
+
+### Chrome 插件 (v1.2.0)
+
+- 无改动
 
 ### Server
 
