@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.9.1 (2026-05-04)
+
+### Server
+
+- **安全: 移除全局 SSL 验证关闭**: 删除 `CURLOPT_SSL_VERIFYPEER => false`，恢复系统 CA 证书校验
+- **修复: 腾讯/火山 Coding Plan "剩余"实际显示"已用"**: `remaining` 字段改为 `100 - used_pct`，与字段名一致
+- **优化: 自动刷新 toast 仅在数据变化时弹出**: 避免每 30 秒弹通知
+- **优化: WAL checkpoint 自动清理**: 采集结束后执行 `PRAGMA wal_checkpoint(TRUNCATE)`
+- **修复: DeepSeek 月初空数据回退上月**: 当月用量返回空时自动降级到上月查询
+
+### Chrome 插件 (v1.2.0)
+
+- 无改动
+
 ## v1.9.0 (2026-05-04)
 
 ### Server

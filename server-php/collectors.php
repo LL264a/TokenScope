@@ -13,7 +13,6 @@ function tm_http_get(string $url, array $headers=[], int $timeout=20): ?array {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => $timeout,
         CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_HTTPHEADER => tm_build_curl_headers($headers),
     ]);
     $body = curl_exec($ch);
@@ -33,7 +32,6 @@ function tm_http_post(string $url, array $headers=[], $body=null, int $timeout=2
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => $timeout,
         CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_POST => true,
         CURLOPT_HTTPHEADER => $curl_headers,
     ]);
@@ -258,9 +256,9 @@ function tm_tencent_parse_coding_plan(array $resp): ?array {
     }
 
     $parts = [];
-    if (isset($quotas['5h'])) $parts[] = "5h:" . number_format($quotas['5h']['used_pct'], 1) . "%";
-    if (isset($quotas['weekly'])) $parts[] = "周:" . number_format($quotas['weekly']['used_pct'], 1) . "%";
-    if (isset($quotas['monthly'])) $parts[] = "月:" . number_format($quotas['monthly']['used_pct'], 1) . "%";
+    if (isset($quotas['5h'])) $parts[] = "5h:" . number_format(100 - $quotas['5h']['used_pct'], 1) . "%";
+    if (isset($quotas['weekly'])) $parts[] = "周:" . number_format(100 - $quotas['weekly']['used_pct'], 1) . "%";
+    if (isset($quotas['monthly'])) $parts[] = "月:" . number_format(100 - $quotas['monthly']['used_pct'], 1) . "%";
     $data['remaining'] = implode(' | ', $parts);
 
     return $data;
@@ -419,10 +417,10 @@ function tm_volcano_collect_coding_plan(string $cookie_str): ?array {
         }
     }
 
-    // remaining 摘要
+    // remaining 摘要（改为剩余百分比，与字段名一致）
     $parts = [];
     foreach (['5h', 'weekly', 'monthly'] as $key) {
-        if (isset($quotas[$key])) $parts[] = "$key:" . number_format($quotas[$key]['used_pct'], 1) . "%";
+        if (isset($quotas[$key])) $parts[] = "$key:" . number_format(100 - $quotas[$key]['used_pct'], 1) . "%";
     }
     $result_data['remaining'] = implode(' | ', $parts);
 
@@ -771,8 +769,25 @@ function tm_collect_deepseek_usage(string $token): array {
         'remaining' => '-',
     ];
 
-    // 1. 查用量
+    // 1. 查用量（月初当月无数据时回退到上月）
     $resp = tm_http_get("https://platform.deepseek.com/api/v0/usage/amount?month=$now&year=$year", $headers);
+    if ($resp && $resp['code'] === 200) {
+        $amount_data = json_decode($resp['body'], true);
+        // 当月无数据（data 为空）→ 回退到上月
+        if (is_array($amount_data) && ($amount_data['code'] ?? -1) === 0) {
+            $biz_data = $amount_data['data']['biz_data']['total'] ?? [];
+            if (empty($biz_data) && $now === 1) {
+                // 1月回退到去年12月
+                $now = 12; $year--;
+                $resp = tm_http_get("https://platform.deepseek.com/api/v0/usage/amount?month=$now&year=$year", $headers);
+                if ($resp && $resp['code'] === 200) $amount_data = json_decode($resp['body'], true);
+            } elseif (empty($biz_data) && $now > 1) {
+                $now--;
+                $resp = tm_http_get("https://platform.deepseek.com/api/v0/usage/amount?month=$now&year=$year", $headers);
+                if ($resp && $resp['code'] === 200) $amount_data = json_decode($resp['body'], true);
+            }
+        }
+    }
     if (!$resp || $resp['code'] !== 200) {
         $code = $resp ? $resp['code'] : 0;
         return [tm_error_item('deepseek', "用量查询失败 (HTTP $code)")];
@@ -787,7 +802,7 @@ function tm_collect_deepseek_usage(string $token): array {
         return [tm_error_item('deepseek', $msg)];
     }
 
-    // 2. 查费用
+    // 2. 查费用（也回退到同一月份）
     $resp_cost = tm_http_get("https://platform.deepseek.com/api/v0/usage/cost?month=$now&year=$year", $headers);
     $cost_biz_data = [];
     if ($resp_cost && $resp_cost['code'] === 200) {
@@ -934,6 +949,10 @@ function tm_do_refresh_all(): array {
             $results[$platform] = ['status' => 'error', 'error' => $e->getMessage(), 'duration_ms' => $duration];
         }
     }
+
+    // WAL checkpoint，防止 wal 文件无限增长
+    $db = tm_get_db();
+    $db->exec('PRAGMA wal_checkpoint(TRUNCATE)');
 
     return $results;
 }
