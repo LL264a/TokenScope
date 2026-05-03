@@ -209,7 +209,7 @@ if ($path === '/api/admin/refresh-log' && $method === 'GET') {
 if ($path === '/api/admin/scheduler' && $method === 'GET') {
     tm_require_auth();
     $running = tm_get_setting('scheduler_running', '0') === '1';
-    $interval = intval(tm_get_setting('scheduler_interval', '300'));
+    $interval = intval(tm_get_setting('scheduler_interval', '30'));
     tm_json_response([
         'running' => $running,
         'interval' => $interval,
@@ -246,6 +246,20 @@ if ($path === '/api/admin/sort-weights' && $method === 'GET') {
     tm_json_response(tm_get_sort_weights());
 }
 
+if ($path === '/api/admin/sort_mode' && $method === 'GET') {
+    tm_require_auth();
+    $mode = tm_get_setting('sort_mode', 'weight');
+    tm_json_response(['mode' => $mode]);
+}
+
+if ($path === '/api/admin/sort_mode' && $method === 'POST') {
+    tm_require_auth();
+    $mode = $input['mode'] ?? '';
+    if (!in_array($mode, ['realtime', 'weight'])) tm_json_error('无效模式');
+    tm_set_setting('sort_mode', $mode);
+    tm_json_response(['status' => 'ok', 'message' => '排序模式已切换']);
+}
+
 if ($path === '/api/admin/sort-weights' && $method === 'POST') {
     tm_require_auth();
     foreach ($input as $platform => $weight) {
@@ -254,28 +268,6 @@ if ($path === '/api/admin/sort-weights' && $method === 'POST') {
     tm_json_response(['status' => 'ok', 'message' => '排序权重已更新']);
 }
 
-if ($path === '/api/admin/hidden-services' && $method === 'GET') {
-    tm_require_auth();
-    tm_json_response(['hidden' => tm_get_hidden_services()]);
-}
-
-if ($path === '/api/admin/hidden-services/hide' && $method === 'POST') {
-    tm_require_auth();
-    $sub = $input['sub_platform'] ?? '';
-    if (!$sub) tm_json_error('缺少 sub_platform');
-    tm_hide_service($sub);
-    tm_json_response(['status' => 'ok', 'message' => "已隐藏 $sub"]);
-}
-
-if ($path === '/api/admin/hidden-services/show' && $method === 'POST') {
-    tm_require_auth();
-    $sub = $input['sub_platform'] ?? '';
-    if (!$sub) tm_json_error('缺少 sub_platform');
-    tm_show_service($sub);
-    tm_json_response(['status' => 'ok', 'message' => "已恢复显示 $sub"]);
-}
-
-// 404
 tm_json_error('Not Found', 404);
 
 // ============ 辅助函数 ============
@@ -372,7 +364,38 @@ function tm_api_stats() {
         }
     }
 
-    usort($all_platforms, fn($a, $b) => ($b['sort_weight'] ?? 0) - ($a['sort_weight'] ?? 0));
+    // 排序
+    $sort_mode = tm_get_setting('sort_mode', 'weight');
+    if ($sort_mode === 'realtime') {
+        // 实时排序：活跃平台靠前（有数据 > 无数据），同批时间戳用 usage 量做活跃度排序
+        usort($all_platforms, function($a, $b) {
+            $aNo = !empty($a['no_data']);
+            $bNo = !empty($b['no_data']);
+            if ($aNo !== $bNo) return $aNo ? 1 : -1;
+            // 有数据的平台，按 last_updated 降序
+            $at = $a['last_updated'] ?? '';
+            $bt = $b['last_updated'] ?? '';
+            if ($at !== $bt) {
+                if ($at === '') return 1;
+                if ($bt === '') return -1;
+                return ($at < $bt) ? 1 : -1;
+            }
+            // 时间戳相同（批量刷新），按 usage 总量降序
+            $aUsage = ($a['total_tokens'] ?? 0) + ($a['cost'] ?? 0);
+            $bUsage = ($b['total_tokens'] ?? 0) + ($b['cost'] ?? 0);
+            if ($aUsage !== $bUsage) return ($aUsage > $bUsage) ? -1 : 1;
+            // 仍然一样，按名字排序保证稳定
+            return strcmp($a['platform'] ?? '', $b['platform'] ?? '');
+        });
+    } else {
+        // 权重模式：按注册顺序（前端会从 localStorage 读取拖动顺序覆盖）
+        usort($all_platforms, function($a, $b) {
+            $aNo = !empty($a['no_data']);
+            $bNo = !empty($b['no_data']);
+            if ($aNo !== $bNo) return $aNo ? 1 : -1;
+            return strcmp($a['platform'] ?? '', $b['platform'] ?? '');
+        });
+    }
 
     tm_json_response([
         'platforms' => array_values($all_platforms),

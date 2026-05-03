@@ -58,10 +58,15 @@ function tm_init_tables() {
 // ============ 平台用量 ============
 
 function tm_save_usage(string $platform, int $total_tokens=0, int $input_tokens=0, int $output_tokens=0,
-                       float $cost=0.0, string $remaining='', array $raw=[]) {
+                       float $cost=0.0, string $remaining='', array $raw=[], ?int $ts=null) {
     $db = tm_get_db();
-    $stmt = $db->prepare("INSERT INTO platform_usage (timestamp, platform, total_tokens, input_tokens, output_tokens, cost, remaining, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([time(), $platform, $total_tokens, $input_tokens, $output_tokens, $cost, $remaining, json_encode($raw, JSON_UNESCAPED_UNICODE)]);
+    $ts = $ts ?? time();
+    try {
+        $stmt = $db->prepare("INSERT INTO platform_usage (timestamp, platform, total_tokens, input_tokens, output_tokens, cost, remaining, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$ts, $platform, $total_tokens, $input_tokens, $output_tokens, $cost, $remaining, json_encode($raw, JSON_UNESCAPED_UNICODE)]);
+    } catch (PDOException $e) {
+        error_log("tm_save_usage: " . $e->getMessage());
+    }
 }
 
 function tm_get_latest_usage(): array {
@@ -156,6 +161,7 @@ function tm_list_credentials(): array {
     foreach ($rows as &$r) {
         if ($r['updated_at']) $r['updated_at'] = date('Y-m-d H:i:s', $r['updated_at']);
     }
+    unset($r);
     return $rows;
 }
 
@@ -171,7 +177,7 @@ function tm_delete_credential(string $platform, ?string $cred_type=null): bool {
     // 同时清理该平台及子平台的 usage 数据和刷新日志
     $sub_map = [
         'tencent' => ['tencent_codingplan', 'tencent_hy_tokenplan', 'tencent_tokenplan'],
-        'volcano' => ['volcano_codingplan', 'volcano_ark', 'volcano_balance'],
+        'volcano' => ['volcano_codingplan'],
     ];
     $all = array_merge([$platform], $sub_map[$platform] ?? []);
     foreach ($all as $p) {
@@ -198,6 +204,7 @@ function tm_get_refresh_log(int $limit=30): array {
     foreach ($rows as &$r) {
         if ($r['timestamp']) $r['timestamp_fmt'] = date('Y-m-d H:i:s', $r['timestamp']);
     }
+    unset($r);
     return $rows;
 }
 

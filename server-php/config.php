@@ -1,15 +1,15 @@
 <?php
 /**
- * Token Monitor v1.8.2 - 配置文件
+ * Token Monitor v1.9.0 - 配置文件
  */
 
 // ============ 版本 ============
-define('APP_VERSION', 'v1.8.2');
+define('APP_VERSION', 'v1.9.0');
 
 // ============ 路径 ============
 define('TM_ROOT', __DIR__);
-define('TM_DB_PATH', TM_ROOT . '/data/token_monitor.db');
-define('TM_DATA_DIR', TM_ROOT . '/data');
+define('TM_DB_PATH', '/var/lib/token-monitor/data/token_monitor.db');
+define('TM_DATA_DIR', '/var/lib/token-monitor/data');
 
 // ============ 平台配置 ============
 define('TM_PLATFORMS', [

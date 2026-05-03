@@ -637,25 +637,14 @@ function tm_collect_deepseek(string $cookie_str): array {
     $cred = json_decode($cookie_str, true);
     if (!is_array($cred)) {
         $raw = trim($cookie_str);
-        // Netscape 格式：提取 Cookie 值
-        if (strpos($raw, "\t") !== false || strpos($raw, '# Netscape') === 0) {
-            $cookies = [];
-            foreach (explode("\n", $raw) as $line) {
-                $line = trim($line);
-                if ($line === '' || strpos($line, '#') === 0) continue;
-                $parts = explode("\t", $line);
-                if (count($parts) >= 7) {
-                    $cookies[] = trim($parts[5]) . '=' . trim($parts[6], '"');
-                }
-            }
-            $cred = ['cookie' => implode('; ', $cookies)];
-        } elseif (strpos($raw, 'sk-') === 0) {
+        // DeepSeek 不支持 Netscape Cookie，只接受 sk- 或 token
+        if (strpos($raw, 'sk-') === 0) {
             $cred = ['api_key' => $raw];
         } elseif (strlen($raw) > 20) {
-            // 可能是 Token
-            $cred = ['token' => $raw, 'cookie' => $raw];
+            // 是 Token（userToken from localStorage）
+            $cred = ['token' => $raw];
         } else {
-            $cred = ['cookie' => $raw];
+            $cred = ['token' => $raw];
         }
     }
 
@@ -893,6 +882,7 @@ function tm_do_refresh_all(): array {
     require_once __DIR__ . '/db.php';
     $results = [];
     $creds = tm_list_credentials();
+    $batch_ts = time(); // 批量刷新统一时间戳，防止排序跳动
 
     foreach ($creds as $cred) {
         $platform = $cred['platform'];
@@ -933,7 +923,7 @@ function tm_do_refresh_all(): array {
                         'remaining' => $item['remaining'] ?? '',
                     ];
                     $extra = array_filter($item, fn($v, $k) => !in_array($k, ['total_tokens','input_tokens','output_tokens','cost','remaining','platform','plan_name','error']), ARRAY_FILTER_USE_BOTH);
-                    tm_save_usage($sub_platform, $std['total_tokens'], $std['input_tokens'], $std['output_tokens'], $std['cost'], $std['remaining'], $extra);
+                    tm_save_usage($sub_platform, $std['total_tokens'], $std['input_tokens'], $std['output_tokens'], $std['cost'], $std['remaining'], $extra, $batch_ts);
                     tm_add_refresh_log($sub_platform, 'success', "total={$std['total_tokens']}", $duration);
                     $results[$sub_platform] = ['status' => 'success', 'duration_ms' => $duration];
                 }

@@ -10,6 +10,8 @@ header('X-Frame-Options: DENY');
 header('X-XSS-Protection: 1; mode=block');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'");
+header('X-Powered-By: ');  // 隐藏 PHP 版本
+header_remove('X-Powered-By');
 
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $script_dir = dirname($_SERVER['SCRIPT_NAME']);
@@ -83,7 +85,14 @@ if (strpos($uri, '/api/') === 0) {
     exit;
 }
 
-// 静态文件（防路径遍历）
+// 静态文件（防路径遍历 + 禁止 data/ 目录）
+// URI 级别拦截（文件不存在时也能保护）
+if (strpos($uri, '/data/') === 0) {
+    http_response_code(404);
+    echo json_encode(['detail' => 'Not Found']);
+    exit;
+}
+// realpath 级别拦截（文件存在时的二次保护）
 $static_path = __DIR__ . $uri;
 $real_path = realpath($static_path);
 $real_dir = realpath(__DIR__);

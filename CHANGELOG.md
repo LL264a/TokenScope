@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.9.0 (2026-05-04)
+
+### Server
+
+- **安全: 敏感数据目录移出 Web 可访问区域**: data/ 从 `wwwroot/data/` 迁移到 `/var/lib/token-monitor/data/`，Nginx 无法直接访问 DB 和日志文件
+- **安全: 会话和限流迁移到 SQLite 原子操作**: 从 JSON 文件改用 SQLite 表，修复高并发下会话丢失和限流绕过的 TOCTOU 严重漏洞
+- **实时排序优化**: 按活跃度排序（有数据>无数据，同批次用量降序），前端权重模式读取 localStorage 拖动顺序
+- **排序稳定性修复**: 批量刷新使用统一时间戳，消除排序跳动
+- **DS 面板增强**: 模型名称 V4-Pro/V4-Flash，缓存命中率显示，月累计Token 亿单位
+- **倒计时样式/刷新动画/通知位置**: 整段居中、点击旋转、通知下移 60px
+- **移动端适配**: 管理页自适应、倒计时只保留秒数
+- **cron 调度漂移修复**: sleep 扣除采集耗时，保证实际间隔准确
+- **前端稳定性**: stats fetch 加 catch、model_usages null 过滤、renderHideBtn 死函数清除
+- **拖动排序重写**: 不卡死 + localStorage 自动保存 + 触控支持
+- **凭证排序修正**: volcano 子平台清理 key 修复（去除不存在的 volcano_ark/volcano_balance）
+- **DeepSeek 凭证简化**: 移除 Netscape Cookie 分支，仅接受 sk- 或 token
+
+### Chrome 插件 (v1.2.0)
+
+- 无改动
+
 ## v1.8.2 (2026-05-03)
 
 ### Server

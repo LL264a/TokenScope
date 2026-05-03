@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <title>Token 监控面板</title>
-    <script>/* 版本号 */ const APP_VERSION = 'v1.8.2';</script>
+    <script>/* 版本号 */ const APP_VERSION = 'v1.9.0';</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -144,6 +144,7 @@
             .top-bar .nav-btns button { font-size: 13px; padding: 4px 8px; }
             .top-bar .nav-btns button .btn-label { display: none; }
             .top-bar .meta > span:first-child { display: none; }
+            .top-bar .meta > span:nth-child(2) > span:first-child { display: none; }
             .top-bar .meta > span:not(:first-child) { font-size: 10px; }
         }
         @media (max-width: 480px) {
@@ -421,7 +422,7 @@
         .log-failed { color: #f87171; }
         .log-error { color: #ef4444; }
 
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+        .toast-container { position: fixed; top: 60px; right: 20px; z-index: 9999; }
         .toast { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; margin-bottom: 8px; font-size: 13px; color: #e2e8f0; animation: slideIn 0.3s ease; max-width: 360px; }
         .toast.success { border-color: #22c55e; }
         .toast.error { border-color: #ef4444; }
@@ -430,6 +431,14 @@
 
         @media (max-width: 768px) {
             .admin-grid { grid-template-columns: 1fr; }
+            .admin-card { padding: 16px; }
+            .admin-card.full-width { overflow-x: auto; }
+            .cred-table { font-size: 10px; }
+            .cred-table th, .cred-table td { padding: 4px 6px; white-space: nowrap; }
+            .cred-update-area textarea { min-height: 40px; font-size: 11px; }
+            .admin-card h3 { font-size: 14px; }
+            .admin-card .form-group input, .admin-card .form-group select, .admin-card .form-group textarea { font-size: 12px; }
+            #new-key-box { font-size: 11px; }
         }
         /* 开关样式 */
         .toggle-switch input:checked + .toggle-slider { background: #34d399; }
@@ -441,12 +450,17 @@
     <div class="top-bar">
         <h1 onclick="switchPage('monitor')">Token 监控面板 <span style="font-size:12px;color:#4ade80;-webkit-text-fill-color:#4ade80;opacity:0.9" id="version-tag"></span></h1>
         <div class="nav-btns">
-            <button class="active" onclick="switchPage('monitor')" id="btn-monitor">📊 <span class="btn-label">监控</span></button>
-            <button onclick="switchPage('admin')" id="btn-admin">⚙️ <span class="btn-label">管理</span></button>
+            <button class="active" onclick="switchPage('monitor')" id="btn-monitor">📊 <span class="btn-label">数据</span></button>
+            <button onclick="switchPage('admin')" id="btn-admin">⚙️ <span class="btn-label">设置</span></button>
         </div>
         <div class="meta">
             <span><span class="live-dot"></span> <span id="status">连接中...</span></span>
-            <span>刷新倒计时 <span id="cd">30</span>s</span>
+            <span style="display:flex;align-items:center;gap:2px;font-size:14px"><span>刷新倒计时</span><b id="cd" style="font-weight:700;color:#4ade80;transition:color 1s;font-size:16px">30</b><span>s</span></span>
+            <span id="refresh-btn-wrap" style="display:none">
+                <button onclick="refreshNow()" title="立即刷新" style="width:34px;height:34px;border-radius:50%;border:1px solid #3b82f6;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1" id="refresh-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" id="refresh-icon"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                </button>
+            </span>
             <span id="auth-indicator" style="display:none">
                 <button class="logout-btn" onclick="doLogout()">🔓 退出</button>
             </span>
@@ -469,29 +483,6 @@
             <!-- 已认证：管理内容 -->
             <div id="admin-content" style="display:none">
                 <div class="admin-grid">
-                    <!-- 定时刷新 -->
-                    <div class="admin-card">
-                        <h3>🔄 定时刷新</h3>
-                        <div class="scheduler-status">
-                            <div class="status-indicator">
-                                <div class="status-dot-admin dot-stopped" id="scheduler-dot"></div>
-                                <span id="scheduler-label">已停止</span>
-                            </div>
-                            <span style="font-size:13px;color:#64748b" id="scheduler-interval-label">间隔: 5分0秒</span>
-                        </div>
-                        <div class="interval-control" style="margin-bottom:12px">
-                            <label style="font-size:12px;color:#94a3b8">间隔(秒):</label>
-                            <input type="number" id="interval-input" value="60" min="10" max="120" step="5">
-                            <button class="btn btn-outline" onclick="updateInterval()">应用</button>
-                        </div>
-                        <div class="btn-row">
-                            <button class="btn btn-success" onclick="schedulerAction('start')">▶ 启动</button>
-                            <button class="btn btn-warning" onclick="schedulerAction('stop')">⏹ 停止</button>
-                            <button class="btn btn-outline" onclick="schedulerAction('restart')">🔄 重启</button>
-                            <button class="btn btn-primary" onclick="refreshNow()">⚡ 立即刷新</button>
-                        </div>
-                    </div>
-
                     <!-- 手动添加凭证 -->
                     <div class="admin-card">
                         <h3>➕ 手动添加凭证</h3>
@@ -517,9 +508,17 @@
                         <button class="btn btn-primary" onclick="saveCredential()">💾 保存凭证</button>
                     </div>
 
-                    <!-- 平台排序 -->
+                    <!-- 平台排序 + 调度器 -->
                     <div class="admin-card">
                         <h3>🔢 平台排序</h3>
+                        <div class="scheduler-status">
+                            <div class="status-indicator">
+                                <div class="status-dot-admin dot-stopped" id="scheduler-dot"></div>
+                                <span id="scheduler-label">已停止</span>
+                            </div>
+                            <span style="font-size:13px;color:#64748b" id="scheduler-interval-label">间隔: 30秒</span>
+                        </div>
+                        <div style="font-size:12px;color:#4b5563;margin-bottom:12px;line-height:1.6">拖动调整前端展示顺序。服务器 cron 每分钟采集，默认 30 秒间隔。</div>
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 12px;background:rgba(15,23,42,0.5);border-radius:8px">
                             <span style="font-size:13px;color:#94a3b8">⚡ 实时排序</span>
                             <label class="toggle-switch" style="position:relative;display:inline-block;width:40px;height:22px">
@@ -528,19 +527,10 @@
                             </label>
                             <span id="sort_mode-label" style="font-size:12px;color:#64748b">权重排序</span>
                         </div>
-                        <div style="font-size:12px;color:#64748b;margin-bottom:12px">开启后按数据活跃度排序，关闭后按下方权重排序</div>
-                        <div id="sort-weight-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
-                        <button class="btn btn-primary" onclick="saveSortWeights()">💾 保存排序</button>
+                        <div id="sort-weight-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
                     </div>
 
-                    <!-- 已隐藏服务 -->
-                    <div class="admin-card">
-                        <h3>👁️ 已隐藏的服务</h3>
-                        <div style="font-size:12px;color:#64748b;margin-bottom:12px">在监控页点击子服务的 ✕ 按钮可隐藏，此处可恢复</div>
-                        <div id="hidden-services-list" style="display:flex;flex-direction:column;gap:6px"></div>
-                    </div>
-
-                    <!-- API 密钥（TOTP） -->
+                    <!-- API 密钥 -->
                     <div class="admin-card">
                         <h3>🔑 API 密钥</h3>
                         <div style="font-size:12px;color:#94a3b8;margin-bottom:12px">插件免密码认证。生成后复制密钥到插件即可使用</div>
@@ -555,16 +545,22 @@
                     </div>
 
                     <!-- 修改密码 -->
-                    <div class="admin-card" style="grid-column: 1 / -1">
+                    <div class="admin-card">
                         <h3>🔑 修改密码</h3>
                         <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
                             <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
                                 <label>当前密码</label>
-                                <input type="password" id="old-password" placeholder="输入当前密码">
+                                <div style="display:flex;gap:4px;align-items:center">
+                                    <input type="password" id="old-password" placeholder="输入当前密码" style="flex:1">
+                                    <button onclick="togglePW('old-password',this)" type="button" style="background:none;border:1px solid #334155;border-radius:6px;padding:6px 8px;cursor:pointer;color:#94a3b8;font-size:13px;line-height:1">👁️</button>
+                                </div>
                             </div>
                             <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
                                 <label>新密码</label>
-                                <input type="password" id="new-password" placeholder="至少4位">
+                                <div style="display:flex;gap:4px;align-items:center">
+                                    <input type="password" id="new-password" placeholder="至少4位" style="flex:1">
+                                    <button onclick="togglePW('new-password',this)" type="button" style="background:none;border:1px solid #334155;border-radius:6px;padding:6px 8px;cursor:pointer;color:#94a3b8;font-size:13px;line-height:1">👁️</button>
+                                </div>
                             </div>
                             <button class="btn btn-warning" onclick="changePassword()" style="margin-bottom:0">修改密码</button>
                         </div>
@@ -622,7 +618,8 @@ const SUB_TO_PARENT = {
 };
 
 let cd = 30;
-let lastDataHash = '';  // 用于对比数据是否变化
+let lastDataHash = '';
+window._refreshInterval = 30;
 
 /* ====== 认证状态 ====== */
 let authToken = localStorage.getItem('token') || '';
@@ -665,6 +662,7 @@ function updateAuthUI() {
     } else {
         indicator.style.display = 'none';
     }
+    updateRefreshBtn();
 }
 
 /* 检查认证状态 */
@@ -820,12 +818,25 @@ async function changePassword() {
     }
 }
 
+/* ====== 密码框显示/隐藏 ====== */
+function togglePW(id,btn) {
+    const inp = document.getElementById(id);
+    if (inp.type === 'password') { inp.type = 'text'; btn.textContent='🙈'; }
+    else { inp.type = 'password'; btn.textContent='👁️'; }
+}
+
 /* ====== 页面切换 ====== */
+/*  ====== 顶栏刷新按钮（仅登录用户可见） ====== */
+function updateRefreshBtn() {
+    document.getElementById('refresh-btn-wrap').style.display = isLoggedIn && document.getElementById('page-monitor').classList.contains('active') ? '' : 'none';
+}
+
 async function switchPage(page) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-btns button').forEach(b => b.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     document.getElementById('btn-' + page).classList.add('active');
+    updateRefreshBtn();
     if (page === 'admin') {
         await checkAuthStatus();
         renderAuthArea();
@@ -885,22 +896,28 @@ function fmt(n) {
 async function load() {
     try {
         const [stats, cookieSt] = await Promise.all([
-            fetch('/api/stats').then(r=>r.json()),
+            fetch('/api/stats').then(r=>r.json()).catch(()=>{return {platforms:[],version:''}}),
             fetch('/api/cookie-status').then(r=>r.json()).catch(()=>[]),
         ]);
         // 从 API 同步版本号
         if (stats.version && stats.version !== APP_VERSION) {
             document.getElementById('version-tag').textContent = stats.version;
         }
-        renderPlatforms(stats.platforms || []);
+        // 数据哈希对比：数据没变不重渲染，避免排序跳动
+        const newHash = JSON.stringify(stats.platforms.map(p => ({
+            p: p.platform, lu: p.last_updated, nt: p.total_tokens, b: p.balance,
+            c: p.monthly_cost, nu: (p.model_usages||[]).map(m => m.model + m.response)
+        })));
+        if (newHash !== lastDataHash) {
+            lastDataHash = newHash;
+            renderPlatforms(stats.platforms || []);
+        }
         renderCookieAlert(cookieSt);
         document.getElementById('status').textContent = '已连接';
-        lastRefreshTime = Date.now(); // 重置刷新计时
-        // 从 stats 同步 refresh_interval（保证和设定完全一致）
+        lastRefreshTime = Date.now();
         if (stats.refresh_interval) {
             window._refreshInterval = Math.max(10, stats.refresh_interval);
         }
-        // 如果在管理页，也刷新日志
         if (document.getElementById('page-admin').classList.contains('active')) {
             loadRefreshLog();
         }
@@ -937,6 +954,26 @@ function renderNoDataCard(p) {
 }
 
 function renderPlatforms(platforms) {
+    // 权重模式：从 localStorage 读取拖动顺序覆盖后端排序
+    const saved = JSON.parse(localStorage.getItem('platform_order') || '[]');
+    const sortModeToggle = document.getElementById('sort_mode-toggle');
+    const isWeight = sortModeToggle && !sortModeToggle.checked;
+    if (isWeight && saved.length) {
+        const savedSet = new Set(saved);
+        // 先把有记录的平台按拖动顺序排
+        const ordered = [];
+        const extra = [];
+        for (const p of saved) {
+            const found = platforms.find(x => x.platform === p);
+            if (found) ordered.push(found);
+        }
+        // 新增平台（拖动后新加的凭证）排在最后
+        for (const p of platforms) {
+            if (!savedSet.has(p.platform)) extra.push(p);
+        }
+        platforms = [...ordered, ...extra];
+    }
+    
     const el = document.getElementById('platforms');
     if (!platforms.length) {
         el.innerHTML = '<div class="empty-state"><div class="icon">📊</div><div class="msg">暂无平台数据</div><div class="hint">前往 ⚙️管理 添加凭证并刷新数据</div></div>';
@@ -1008,7 +1045,7 @@ function renderVolcanoBalanceSub(s, name) {
         (arrears > 0 ? ' · <span style="color:#ef4444">欠费 ¥' + arrears.toFixed(2) + '</span>' : '') +
         '</span></div>';
 
-    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">按量付费</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span>' + renderHideBtn(s.platform) + '</span></div>' + balanceHtml + '</div>';
+    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">按量付费</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span></span></div>' + balanceHtml + '</div>';
 }
 
 /* ====== 腾讯大卡 ====== */
@@ -1046,15 +1083,6 @@ function escJs(s) {
     return s.replace(/[\\'"]/g, '\\$&').replace(/</g, '\\x3c').replace(/>/g, '\\x3e');
 }
 
-/* 渲染隐藏按钮（未登录时禁用） */
-function renderHideBtn(subPlatform) {
-    const safeName = escJs(subPlatform);
-    if (isLoggedIn) {
-        return '<button class="sub-hide-btn" title="隐藏此服务" onclick="hideSubService(\'' + safeName + '\')">✕</button>';
-    } else {
-        return '<button class="sub-hide-btn disabled" title="请先登录管理后台" onclick="toast(\'请先登录管理后台\',\'error\')">✕</button>';
-    }
-}
 
 /* 子服务: Coding Plan */
 function renderSubCodingPlan(s, name) {
@@ -1088,7 +1116,7 @@ function renderSubCodingPlan(s, name) {
         ? '<div class="sub-exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">' + recoveryTime + '</span><span class="countdown" data-recovery="' + recoveryTime + '">计算中...</span></div></div>'
         : '';
 
-    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">' + (s.plan_type||'Lite') + ' · ' + (s.cost?s.cost+'元/月':'') + '</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span>' + renderHideBtn(s.platform) + '</span></div><div class="quota-body" style="position:relative">' + quotaHtml + overlayHtml + '</div></div>';
+    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">' + (s.plan_type||'Lite') + ' · ' + (s.cost?s.cost+'元/月':'') + '</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span></span></div><div class="quota-body" style="position:relative">' + quotaHtml + overlayHtml + '</div></div>';
 }
 
 /* 子服务: 传统额度 */
@@ -1097,7 +1125,7 @@ function renderSubTokenPlan(s, name) {
     const c = getColorClass(usedPct);
     const badge = getStatusBadge(usedPct);
     const total = s.total_tokens || 0, used = s.input_tokens || 0, remaining = s.output_tokens || 0;
-    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">' + (s.plan_type||'') + ' · ' + (s.remaining_days?s.remaining_days+'天':'') + '</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span>' + renderHideBtn(s.platform) + '</span></div><div style="padding:16px 24px"><div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px"><span style="font-size:13px;color:#64748b">剩余</span><span style="font-size:28px;font-weight:800" class="' + c.text + '">' + fmt(remaining) + '</span><span style="font-size:16px;font-weight:600" class="' + c.text + '">(' + (s.remaining_pct||0).toFixed(1) + '%)</span><span style="font-size:12px;color:#4b5563">/ 套餐 ' + fmt(total) + '</span></div><div class="progress-track" style="margin-bottom:8px"><div class="progress-fill ' + c.fill + '" style="width:' + usedPct.toFixed(1) + '%"></div></div><div style="display:flex;justify-content:space-between;font-size:12px"><span class="' + c.text + '">已用 ' + usedPct.toFixed(1) + '%</span><span class="' + c.text + '">剩余 ' + (s.remaining_pct||0).toFixed(1) + '%</span></div></div></div>';
+    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">' + (s.plan_type||'') + ' · ' + (s.remaining_days?s.remaining_days+'天':'') + '</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span></span></div><div style="padding:16px 24px"><div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px"><span style="font-size:13px;color:#64748b">剩余</span><span style="font-size:28px;font-weight:800" class="' + c.text + '">' + fmt(remaining) + '</span><span style="font-size:16px;font-weight:600" class="' + c.text + '">(' + (s.remaining_pct||0).toFixed(1) + '%)</span><span style="font-size:12px;color:#4b5563">/ 套餐 ' + fmt(total) + '</span></div><div class="progress-track" style="margin-bottom:8px"><div class="progress-fill ' + c.fill + '" style="width:' + usedPct.toFixed(1) + '%"></div></div><div style="display:flex;justify-content:space-between;font-size:12px"><span class="' + c.text + '">已用 ' + usedPct.toFixed(1) + '%</span><span class="' + c.text + '">剩余 ' + (s.remaining_pct||0).toFixed(1) + '%</span></div></div></div>';
 }
 
 function renderCodingPlan(p) {
@@ -1211,20 +1239,33 @@ function renderDeepSeekCard(p) {
     const balance = p.balance || 0;
     const modelUsages = p.model_usages || [];
     
+    // 亿单位转换
+    const totalYi = totalTokens >= 1e8 ? (totalTokens / 1e8).toFixed(2) + '亿' : '';
+    
     let modelHtml = '';
     for (const mu of modelUsages) {
-        // 跳过 deepseek-chat & deepseek-reasoner（无用模型）
         if (mu.model === 'deepseek-chat & deepseek-reasoner') continue;
         
         const totalModel = mu.prompt_cache_hit + mu.prompt_cache_miss + mu.response;
         
-        const modelName = mu.model.replace('deepseek-', '');
+        // 模型重命名
+        let modelName = mu.model.replace('deepseek-', '');
+        if (modelName === 'v4-pro') modelName = 'V4-Pro';
+        else if (modelName === 'v4-flash') modelName = 'V4-Flash';
+        else modelName = modelName.charAt(0).toUpperCase() + modelName.slice(1);
+        
+        // 缓存命中率
+        const totalPrompt = mu.prompt_cache_hit + mu.prompt_cache_miss;
+        const cacheRate = totalPrompt > 0 ? (mu.prompt_cache_hit / totalPrompt * 100).toFixed(1) : 0;
+        
         const row = '<div style="margin-top:10px;padding:12px 14px;background:rgba(30,41,59,0.5);border-radius:10px;border:1px solid rgba(51,65,85,0.5)">' +
-            '<div style="font-size:15px;font-weight:600;color:#e2e8f0;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(51,65,85,0.5)">' + modelName + '</div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(51,65,85,0.5)">' +
+                '<span style="font-size:15px;font-weight:600;color:#e2e8f0">' + modelName + '</span>' +
+                (totalPrompt > 0 ? '<span style="font-size:12px;color:#60a5fa">缓存命中率 ' + cacheRate + '%</span>' : '') +
+            '</div>' +
             (totalModel === 0
                 ? '<div style="padding:12px 0;text-align:center;color:#64748b;font-size:13px">本月暂无用量</div>'
-                : /* 4项指标水平一排 */
-                '<div style="display:flex;gap:8px;font-size:13px">' +
+                : '<div style="display:flex;gap:8px;font-size:13px">' +
                 '<div style="flex:1;background:rgba(52,211,153,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">缓存命中</div><div style="color:#34d399;font-weight:700;font-size:14px;margin-top:3px">' + mu.prompt_cache_hit.toLocaleString() + '</div></div>' +
                 '<div style="flex:1;background:rgba(251,191,36,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">未命中缓存</div><div style="color:#fbbf24;font-weight:700;font-size:14px;margin-top:3px">' + mu.prompt_cache_miss.toLocaleString() + '</div></div>' +
                 '<div style="flex:1;background:rgba(96,165,250,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">输出Token</div><div style="color:#60a5fa;font-weight:700;font-size:14px;margin-top:3px">' + mu.response.toLocaleString() + '</div></div>' +
@@ -1236,13 +1277,12 @@ function renderDeepSeekCard(p) {
         modelHtml += row;
     }
 
-    // 余额和消费 + 月累计Token 并排
     const balanceHtml = '<div style="padding:8px 0 4px;display:flex;justify-content:space-evenly;align-items:center">' +
         (balance > 0
             ? '<div style="text-align:center;min-width:120px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">充值余额</div><div style="font-size:26px;font-weight:800;color:#34d399">¥' + balance.toFixed(2) + '</div></div>'
             : '') +
         '<div style="text-align:center;min-width:120px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">本月消费</div><div style="font-size:26px;font-weight:800;color:#f87171">¥' + monthlyCost.toFixed(2) + '</div></div>' +
-        '<div style="text-align:center;min-width:140px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">月累计Token</div><div style="font-size:24px;font-weight:800;color:#e2e8f0">' + totalTokens.toLocaleString() + '</div></div>' +
+        '<div style="text-align:center;min-width:140px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">月累计Token</div><div style="font-size:24px;font-weight:800;color:#e2e8f0">' + totalTokens.toLocaleString() + '</div>' + (totalYi ? '<div style="font-size:11px;color:#64748b;margin-top:1px">≈ ' + totalYi + '</div>' : '') + '</div>' +
         '</div>';
 
     const badge = p.balance > 0 ? getStatusBadge(30) : getStatusBadge(monthlyCost > 0 ? 70 : 30);
@@ -1267,7 +1307,7 @@ let platformConfigs = {};
 async function loadAdminData() {
     if (!isLoggedIn) return;
     try {
-        await Promise.all([loadCredentials(), loadSchedulerStatus(), loadRefreshLog(), loadPlatformConfigs(), loadSortWeights(), loadSortMode(), loadHiddenServices(), loadApiKeys()]);
+        await Promise.all([loadCredentials(), loadSchedulerStatus(), loadRefreshLog(), loadPlatformConfigs(), loadSortWeights(), loadSortMode(), loadApiKeys()]);
     } catch(e) {
         console.error('加载管理数据失败:', e);
     }
@@ -1308,51 +1348,99 @@ function onPlatformChange() {
 
 async function loadSortWeights() {
     try {
-        const [weightsResp, platformsResp] = await Promise.all([
-            authFetch('/api/admin/sort-weights').then(r=>r.json()),
-            authFetch('/api/admin/platforms').then(r=>r.json())
+        const [credsResp] = await Promise.all([
+            authFetch('/api/admin/credentials').then(r=>r.json())
         ]);
         const container = document.getElementById('sort-weight-list');
         if (!container) return;
-        const platforms = Object.keys(platformsResp);
-        container.innerHTML = platforms.map(p => {
-            const name = NAMES[p] || platformsResp[p].name || p;
-            const icon = platformsResp[p].icon || '';
-            const w = weightsResp[p] || 0;
-            return '<div style="display:flex;align-items:center;gap:10px">' +
-                '<span style="font-size:14px;min-width:100px">' + icon + ' ' + name + '</span>' +
-                '<input type="number" id="weight-' + p + '" value="' + w + '" min="0" max="999" ' +
-                'style="width:70px;padding:6px 10px;background:#0d1117;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;font-size:13px;text-align:center">' +
-                '<span style="font-size:11px;color:#4b5563">权重</span>' +
+        
+        const activePlatforms = [...new Set(credsResp.map(c => c.platform))];
+        if (!activePlatforms.length) {
+            container.innerHTML = '<span style="font-size:12px;color:#4b5563">暂无有效平台</span>';
+            return;
+        }
+        
+        // 从 localStorage 读保存的顺序，没有则用原来的
+        const saved = JSON.parse(localStorage.getItem('platform_order') || '[]');
+        const ordered = saved.filter(p => activePlatforms.includes(p));
+        for (const p of activePlatforms) {
+            if (!ordered.includes(p)) ordered.push(p);
+        }
+        
+        container.innerHTML = ordered.map(p => {
+            const name = NAMES[p] || p;
+            const icon = {deepseek:'🔮',xiaomi:'🧸',tencent:'🔷',volcano:'🌋'}[p] || '📊';
+            return '<div draggable="true" data-platform="' + p + '" id="drag-' + p + '" ' +
+                'style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#0d1117;border:1px solid #1e293b;border-radius:8px;cursor:grab;user-select:none;-webkit-user-select:none;font-size:13px;color:#e2e8f0">' +
+                '<span style="font-size:16px;line-height:1;cursor:grab">⠿</span>' +
+                '<span>' + icon + '</span>' +
+                '<span style="flex:1">' + name + '</span>' +
                 '</div>';
         }).join('');
+        
+        // 绑定事件：桌面拖拽 + 移动端触控
+        container.querySelectorAll('[draggable]').forEach(el => {
+            el.addEventListener('dragstart', onDragStart);
+            el.addEventListener('dragend', onDragEnd);
+            el.addEventListener('dragover', onDragOver);
+            el.addEventListener('drop', onDrop);
+            // 移动端触控
+            el.addEventListener('touchstart', onTouchStart, {passive:false});
+            el.addEventListener('touchmove', onTouchMove, {passive:false});
+            el.addEventListener('touchend', onTouchEnd, {passive:false});
+        });
+        container.addEventListener('dragover', e => e.preventDefault());
     } catch(e) { console.error(e); }
 }
 
-async function saveSortWeights() {
-    try {
-        const platformsResp = await authFetch('/api/admin/platforms').then(r=>r.json());
-        const data = {};
-        for (const p of Object.keys(platformsResp)) {
-            const input = document.getElementById('weight-' + p);
-            if (input) data[p] = parseInt(input.value) || 0;
-        }
-        const resp = await authFetch('/api/admin/sort-weights', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify(data)
-        });
-        const result = await resp.json();
-        if (result.status === 'ok') {
-            toast('排序权重已保存，刷新页面后生效', 'success');
-            lastDataHash = '';
-            load();
-        } else {
-            toast(result.error || '保存失败', 'error');
-        }
-    } catch(e) { if (e.message !== '未授权') toast('请求失败: '+e.message, 'error'); }
+/* ====== 拖动排序核心逻辑 ====== */
+let _dragSrc = null;
+function onDragStart(e) {
+    _dragSrc = this;
+    this.style.opacity = '0.4';
+    this.style.background = '#1e293b';
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', this.dataset.platform);
+}
+function onDragOver(e) {
+    if (e.preventDefault) e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+}
+function onDragEnd(e) {
+    this.style.opacity = '';
+    this.style.background = '';
+    _dragSrc = null;
+    // 清理所有高亮
+    document.querySelectorAll('#sort-weight-list > div').forEach(d => {
+        d.style.borderTop = ''; d.style.borderBottom = '';
+    });
+}
+function onDrop(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!_dragSrc || _dragSrc === this) return;
+    const container = document.getElementById('sort-weight-list');
+    const items = [...container.children];
+    const fromIdx = items.indexOf(_dragSrc);
+    const toIdx = items.indexOf(this);
+    if (fromIdx < toIdx) {
+        this.parentNode.insertBefore(_dragSrc, this.nextSibling);
+    } else {
+        this.parentNode.insertBefore(_dragSrc, this);
+    }
+    // 保存顺序
+    _saveSortOrder();
+    onDragEnd.call(_dragSrc);
+}
+function _saveSortOrder() {
+    const container = document.getElementById('sort-weight-list');
+    const order = [...container.children].map(el => el.dataset.platform);
+    localStorage.setItem('platform_order', JSON.stringify(order));
+    toast('排序已保存', 'success');
 }
 
+/* ====== 实时排序开关 ====== */
 async function loadSortMode() {
     try {
         const resp = await authFetch('/api/admin/sort_mode');
@@ -1366,15 +1454,13 @@ async function loadSortMode() {
         }
     } catch(e) { console.error(e); }
 }
-
 async function toggleSortMode() {
     const toggle = document.getElementById('sort_mode-toggle');
     const label = document.getElementById('sort_mode-label');
     const mode = toggle.checked ? 'realtime' : 'weight';
     try {
         const resp = await authFetch('/api/admin/sort_mode', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
+            method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({mode})
         });
         const result = await resp.json();
@@ -1390,61 +1476,39 @@ async function toggleSortMode() {
     } catch(e) { if (e.message !== '未授权') toast('请求失败: '+e.message, 'error'); }
 }
 
-async function hideSubService(subPlatform) {
-    if (!isLoggedIn) {
-        toast('请先登录管理后台', 'error');
-        return;
-    }
-    if (!confirm('确定隐藏 ' + (NAMES[subPlatform]||subPlatform) + '？可在管理页恢复。')) return;
-    try {
-        const resp = await authFetch('/api/admin/hidden-services/hide', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({sub_platform: subPlatform})
-        });
-        const result = await resp.json();
-        if (result.status === 'ok') {
-            toast('已隐藏 ' + (NAMES[subPlatform]||subPlatform), 'success');
-            lastDataHash = '';
-            load();
-        }
-    } catch(e) { if (e.message !== '未授权') toast('操作失败', 'error'); }
+/* ====== 移动端触控拖动 ====== */
+let _touchSrc = null, _touchClone = null, _touchY = 0, _touchStartY = 0;
+function onTouchStart(e) {
+    _touchSrc = this;
+    _touchStartY = e.touches[0].clientY;
+    _touchY = e.touches[0].clientY;
+    this.style.opacity = '0.4';
+    this.style.background = '#1e293b';
 }
-
-async function showSubService(subPlatform) {
-    try {
-        const resp = await authFetch('/api/admin/hidden-services/show', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({sub_platform: subPlatform})
-        });
-        const result = await resp.json();
-        if (result.status === 'ok') {
-            toast('已恢复 ' + (NAMES[subPlatform]||subPlatform), 'success');
-            lastDataHash = '';
-            load();
-            loadHiddenServices();
-        }
-    } catch(e) { if (e.message !== '未授权') toast('操作失败', 'error'); }
-}
-
-async function loadHiddenServices() {
-    try {
-        const resp = await authFetch('/api/admin/hidden-services').then(r=>r.json());
-        const container = document.getElementById('hidden-services-list');
-        if (!container) return;
-        const hidden = resp.hidden || [];
-        if (!hidden.length) {
-            container.innerHTML = '<span style="font-size:12px;color:#4b5563">暂无隐藏的服务</span>';
+function onTouchMove(e) {
+    e.preventDefault();
+    if (!_touchSrc) return;
+    _touchY = e.touches[0].clientY;
+    const container = document.getElementById('sort-weight-list');
+    const items = [...container.children];
+    // 找到手指位置的元素
+    for (const item of items) {
+        if (item === _touchSrc) continue;
+        const rect = item.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        if (_touchY < mid) {
+            container.insertBefore(_touchSrc, item);
             return;
         }
-        container.innerHTML = hidden.map(s =>
-            '<div style="display:flex;align-items:center;gap:8px">' +
-            '<span style="font-size:13px;color:#94a3b8">' + escHtml(s) + '</span>' +
-            '<button class="btn btn-outline" style="padding:3px 10px;font-size:11px" onclick="showSubService(\'' + escJs(s) + '\')">恢复显示</button>' +
-            '</div>'
-        ).join('');
-    } catch(e) { console.error(e); }
+    }
+    container.appendChild(_touchSrc);
+}
+function onTouchEnd(e) {
+    if (!_touchSrc) return;
+    _touchSrc.style.opacity = '';
+    _touchSrc.style.background = '';
+    _saveSortOrder();
+    _touchSrc = null;
 }
 
 async function loadCredentials() {
@@ -1517,7 +1581,7 @@ async function checkCredential(platform) {
     const resultEl = document.getElementById('check-result-'+platform);
     resultEl.innerHTML = '<span class="cred-check-loading">⏳ 检查中...</span>';
     try {
-        const resp = await authFetch('/api/admin/check_credential', {method:'POST', body: JSON.stringify({platform})});
+        const resp = await authFetch('/api/admin/check-credential/'+platform, {method:'POST', body:'{}'});
         const result = await resp.json();
         if (result.error && !result.details) {
             resultEl.innerHTML = '<div class="cred-check-result cred-check-fail">❌ '+escHtml(result.error)+'</div>';
@@ -1601,15 +1665,14 @@ async function loadApiKeys() {
     try {
         const resp = await authFetch('/api/admin/api_keys');
         const keys = await resp.json();
-        if (!keys.length) { el.innerHTML = '<div style="color:#64748b;padding:6px 0">暂无密钥</div>'; return; }
-        el.innerHTML = keys.map(function(k) {
-            var dot = k.revoked ? '🔴 已吊销' : '🟢 有效';
-            var actions = k.revoked ? '' : '<button class="btn btn-danger" style="font-size:11px;padding:2px 8px;margin-left:8px" onclick="revokeApiKey('+k.id+')">吊销</button>';
+        const active = keys.filter(function(k) { return !k.revoked; });
+        if (!active.length) { el.innerHTML = '<div style="color:#64748b;padding:6px 0">暂无密钥</div>'; return; }
+        el.innerHTML = active.map(function(k) {
             return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1e293b">' +
                 '<span>'+escHtml(k.name)+'</span>' +
-                '<span style="font-size:11px;color:#64748b">'+dot+'</span>' +
+                '<span style="font-size:11px;color:#64748b">🟢 有效</span>' +
                 '<span style="font-size:11px;color:#64748b;margin-left:auto">'+escHtml(k.created_at_fmt||'')+'</span>' +
-                actions +
+                '<button class="btn btn-danger" style="font-size:11px;padding:2px 8px;margin-left:8px" onclick="revokeApiKey('+k.id+')">吊销</button>' +
                 '</div>';
         }).join('');
     } catch(e) {
@@ -1680,8 +1743,7 @@ async function loadSchedulerStatus() {
         const dot = document.getElementById('scheduler-dot'), label = document.getElementById('scheduler-label');
         if (data.running) { dot.className='status-dot-admin dot-running'; label.textContent='运行中'; label.style.color='#4ade80'; }
         else { dot.className='status-dot-admin dot-stopped'; label.textContent='已停止'; label.style.color='#6b7280'; }
-        document.getElementById('scheduler-interval-label').textContent = '间隔: '+data.interval_label;
-        document.getElementById('interval-input').value = data.interval;
+        document.getElementById('scheduler-interval-label').textContent = '间隔: ' + data.interval + '秒';
     } catch(e) { console.error(e); }
 }
 
@@ -1704,6 +1766,8 @@ async function updateInterval() {
 }
 
 async function refreshNow() {
+    const ico = document.getElementById('refresh-icon');
+    if (ico) { ico.style.transition = 'transform 0.6s'; ico.style.transform = 'rotate(360deg)'; }
     toast('正在刷新所有平台...', 'info');
     try {
         const resp = await authFetch('/api/admin/refresh', {method:'POST'});
@@ -1715,6 +1779,7 @@ async function refreshNow() {
             loadRefreshLog(); load();
         }
     } catch(e) { if (e.message !== '未授权') toast('刷新失败: '+e.message, 'error'); }
+    if (ico) setTimeout(() => { ico.style.transition = 'none'; ico.style.transform = 'rotate(0deg)'; }, 800);
 }
 
 async function loadRefreshLog() {
@@ -1737,19 +1802,22 @@ checkAuthStatus().then(() => {
 });
 
 load();
-// 自动刷新：每1秒检查一次，距离上次刷新超过间隔秒数就刷新
+// 自动刷新：每1秒检查一次
 let lastRefreshTime = Date.now();
-window._refreshInterval = 60;
 ;(async function startAutoRefresh() {
     setInterval(async () => {
+        const iv = window._refreshInterval || 30;
         const elapsed = Math.floor((Date.now() - lastRefreshTime) / 1000);
-        const iv = window._refreshInterval || 60;
         const remain = Math.max(0, iv - elapsed);
-        document.getElementById('cd').textContent = remain;
+        const cdEl = document.getElementById('cd');
+        cdEl.textContent = remain;
+        // 颜色: 绿色(>15s) → 黄色(>5s) → 红色(≤5s)
+        cdEl.style.color = remain > 15 ? '#4ade80' : remain > 5 ? '#fbbf24' : '#ef4444';
         
         if (remain <= 0) {
             await load();
             lastRefreshTime = Date.now();
+            toast('数据已刷新', 'info');
         }
     }, 1000);
 })();
