@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <rect x="10.5" y="1" width="3" height="14" rx="1.5" fill="#60a5fa"/>
+  <rect x="3.5" y="3.5" width="17" height="3" rx="1.5" fill="#c084fc"/>
+  <circle cx="12" cy="12" r="7" stroke="#4ade80" stroke-width="1.5" fill="none"/>
+  <circle cx="12" cy="12" r="5" stroke="#4ade80" stroke-width="0.5" stroke-dasharray="2,2" fill="none"/>
+  <text x="12" y="15" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#4ade80">T</text>
+</svg>

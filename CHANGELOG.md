@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.9.2 (2026-05-04)
+
+### Server
+
+- **品牌 Logo 上线**: 自定义 TokenScope 品牌图标（T字母+绿色Token圆环），替换 emoji 标题
+- **平台品牌 SVG 图标**: DeepSeek / 腾讯云 / 火山引擎 / MIMO 使用官方矢量 Logo（来自 LobeHub 图标库）
+- **Favicon 图标**: 浏览器标签页显示 TokenScope T 字母图标
+
+### Chrome 插件 (v1.2.0)
+
+- 无改动
+
 ## v1.9.1 (2026-05-04)
 
 ### Server
