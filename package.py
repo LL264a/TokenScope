@@ -77,8 +77,8 @@ print(f"   ✅ {plugin_zip.name} ({plugin_zip.stat().st_size / 1024:.1f} KB)")
 
 # ============ 2. 项目打包 (7z) ============
 print("=" * 50)
-print("2. 打包完整项目 (TokenScope_v1.8.1.7z)")
-project_7z = OUT / "TokenScope_v1.8.1.7z"
+print("2. 打包完整项目 (TokenScope_v1.8.2.7z)")
+project_7z = OUT / "TokenScope_v1.8.2.7z"
 project_files = collect_files(ROOT)
 print(f"   文件数: {len(project_files)}")
 
@@ -92,8 +92,8 @@ print(f"   ✅ {project_7z.name} ({size_mb:.1f} MB)")
 
 # ============ 3. 服务端 PHP 打包 ============
 print("=" * 50)
-print("3. 打包服务端 (server_php_v1.8.1.7z)")
-php_7z = OUT / "server_php_v1.8.1.7z"
+print("3. 打包服务端 (server_php_v1.8.2.7z)")
+php_7z = OUT / "server_php_v1.8.2.7z"
 php_files = list(SERVER_PHP.rglob("*"))
 print(f"   文件数: {len(php_files)}")
 
@@ -109,5 +109,5 @@ print(f"   ✅ {php_7z.name} ({size_kb:.1f} KB)")
 print("=" * 50)
 print(f"全部打包完成，输出目录: {OUT}")
 print(f"  插件:  chrome_extension_v1.2.0.zip")
-print(f"  项目:  TokenScope_v1.8.1.7z")
-print(f"  服务端: server_php_v1.8.1.7z")
+print(f"  项目:  TokenScope_v1.8.2.7z")
+print(f"  服务端: server_php_v1.8.2.7z")

@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <title>Token 监控面板</title>
-    <script>/* 版本号 */ const APP_VERSION = 'v1.8.1';</script>
+    <script>/* 版本号 */ const APP_VERSION = 'v1.8.2';</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -62,6 +62,96 @@
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
         .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+
+        /* ====== 移动端适配 ====== */
+        @media (max-width: 768px) {
+            .container { padding: 12px; }
+            .platform-grid {
+                grid-template-columns: 1fr !important;
+                gap: 12px;
+            }
+            .plan-card { border-radius: 12px; }
+            .card-header { padding: 14px 16px; }
+            .card-header .title { font-size: 16px !important; }
+            .card-header .subtitle { font-size: 11px; }
+            .status-badge { font-size: 10px; padding: 3px 8px; }
+            .plan-info { padding: 12px 16px; gap: 10px; font-size: 11px; }
+            .quota-hero .remaining-value { font-size: 26px !important; }
+            .tokenplan-body { padding: 12px 16px !important; }
+            .detail-grid { gap: 8px; }
+            .detail-item { padding: 10px 12px; }
+            .detail-item .val { font-size: 14px; }
+            .detail-item .label { font-size: 10px; }
+            .xiaomi-section { padding: 12px 16px; }
+            .xiaomi-section div[style*="display:flex;align-items:baseline"] {
+                gap: 6px !important;
+                flex-wrap: nowrap !important;
+                white-space: nowrap;
+                overflow-x: auto;
+            }
+            .xiaomi-section div[style*="display:flex;align-items:baseline"] span {
+                white-space: nowrap;
+            }
+            .xiaomi-section div[style*="display:flex;align-items:baseline"] span[style*="font-size:24px"] {
+                font-size: 16px !important;
+            }
+            .xiaomi-section div[style*="display:flex;align-items:baseline"] span[style*="font-size:28px"] {
+                font-size: 18px !important;
+            }
+            .xiaomi-section div[style*="display:flex;align-items:baseline"] span[style*="font-size:16px"] {
+                font-size: 12px !important;
+            }
+            .xiaomi-section div[style*="display:flex;align-items:baseline"] span[style*="font-size:12px"] {
+                font-size: 10px !important;
+            }
+            .xiaomi-section div[style*="display:flex;align-items:baseline"] span[style*="font-size:13px"] {
+                font-size: 11px !important;
+            }
+            .card-footer { padding: 10px 16px; font-size: 10px; }
+            .exhausted-text { font-size: 20px; }
+            /* 火山余额 */
+            .tokenplan-body > div > div[style*="font-size:36px"] {
+                font-size: 28px !important;
+            }
+            /* DeepSeek 余额 */
+            .plan-card > div[style*="padding:8px 16px"] > div > div > div[style*="font-size:26px"] {
+                font-size: 20px !important;
+            }
+            .plan-card > div[style*="padding:8px 16px"] > div > div > div[style*="font-size:24px"] {
+                font-size: 18px !important;
+            }
+            /* 模型详情卡片 */
+            .plan-card > div[style*="padding:0 16px"] > div > div[style*="display:flex;gap:8px"] {
+                flex-wrap: wrap !important;
+            }
+            .plan-card > div[style*="padding:0 16px"] > div > div[style*="display:flex;gap:8px"] > div {
+                flex: 1 1 45% !important;
+                margin-bottom: 4px;
+            }
+            /* 余额横幅三列变列 */
+            div[style*="display:flex;justify-content:space-evenly"] {
+                flex-wrap: wrap !important;
+                gap: 8px;
+            }
+            .cred-table { font-size: 11px; }
+            .cred-table th, .cred-table td { padding: 6px 8px; }
+            .admin-card .btn { font-size: 11px; padding: 4px 8px; }
+            /* 顶栏移动端 */
+            .top-bar { padding: 10px 12px; gap: 4px; }
+            .top-bar h1 { font-size: 14px; }
+            .top-bar h1 span { display: block; font-size: 10px !important; text-align: left; }
+            .top-bar .nav-btns { gap: 4px; }
+            .top-bar .nav-btns button { font-size: 13px; padding: 4px 8px; }
+            .top-bar .nav-btns button .btn-label { display: none; }
+            .top-bar .meta > span:first-child { display: none; }
+            .top-bar .meta > span:not(:first-child) { font-size: 10px; }
+        }
+        @media (max-width: 480px) {
+            .card-header .title { font-size: 14px !important; }
+            .quota-hero .remaining-value { font-size: 22px !important; }
+            .detail-item .val { font-size: 13px; }
+            .status-badge { font-size: 9px; padding: 2px 6px; }
+        }
 
         /* ====== Cookie 失效警告横幅 ====== */
         .cookie-alert {
@@ -351,8 +441,8 @@
     <div class="top-bar">
         <h1 onclick="switchPage('monitor')">Token 监控面板 <span style="font-size:12px;color:#4ade80;-webkit-text-fill-color:#4ade80;opacity:0.9" id="version-tag"></span></h1>
         <div class="nav-btns">
-            <button class="active" onclick="switchPage('monitor')" id="btn-monitor">📊 监控</button>
-            <button onclick="switchPage('admin')" id="btn-admin">⚙️ 管理</button>
+            <button class="active" onclick="switchPage('monitor')" id="btn-monitor">📊 <span class="btn-label">监控</span></button>
+            <button onclick="switchPage('admin')" id="btn-admin">⚙️ <span class="btn-label">管理</span></button>
         </div>
         <div class="meta">
             <span><span class="live-dot"></span> <span id="status">连接中...</span></span>
@@ -1112,7 +1202,7 @@ function renderXiaomiCard(p) {
             '</div>';
     }
 
-    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">🧸 MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + planHtml + balanceHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">🧸 MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + balanceHtml + planHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 function renderDeepSeekCard(p) {
