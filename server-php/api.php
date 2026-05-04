@@ -181,7 +181,7 @@ if (preg_match('#^/api/admin/refresh/([a-z_]+)$#', $path, $m) && $method === 'PO
     tm_require_auth();
     require_once __DIR__ . '/collectors.php';
     $platform = $m[1];
-    if (!isset($GLOBALS['TM_PLATFORMS'][$platform])) {
+    if (!isset(TM_PLATFORMS[$platform])) {
         tm_json_error('未知平台', 404);
     }
     $results = tm_do_refresh_platform($platform);
@@ -193,7 +193,7 @@ if (preg_match('#^/api/admin/check-credential/([a-z_]+)$#', $path, $m) && $metho
     tm_require_auth();
     require_once __DIR__ . '/collectors.php';
     $platform = $m[1];
-    if (!isset($GLOBALS['TM_PLATFORMS'][$platform])) {
+    if (!isset(TM_PLATFORMS[$platform])) {
         tm_json_error('未知平台', 404);
     }
     $result = tm_do_check_credential($platform);
@@ -204,6 +204,13 @@ if ($path === '/api/admin/refresh-log' && $method === 'GET') {
     tm_require_auth();
     $limit = intval($query['limit'] ?? 30);
     tm_json_response(tm_get_refresh_log($limit));
+}
+
+if ($path === '/api/admin/refresh-log' && $method === 'DELETE') {
+    tm_require_auth();
+    $db = tm_get_db();
+    $db->exec("DELETE FROM refresh_log");
+    tm_json_response(['status' => 'ok']);
 }
 
 if ($path === '/api/admin/scheduler' && $method === 'GET') {
@@ -257,7 +264,7 @@ if ($path === '/api/admin/sort_mode' && $method === 'POST') {
     $mode = $input['mode'] ?? '';
     if (!in_array($mode, ['realtime', 'weight'])) tm_json_error('无效模式');
     tm_set_setting('sort_mode', $mode);
-    tm_json_response(['status' => 'ok', 'message' => '排序模式已切换']);
+    tm_json_response(['status' => 'ok', 'message' => $mode === 'realtime' ? '实时排序' : '权重排序']);
 }
 
 if ($path === '/api/admin/sort-weights' && $method === 'POST') {
@@ -302,7 +309,8 @@ function tm_api_stats() {
                 'balance_frozen','balance_arrears','balance','gift_balance','cash_balance','frozen_balance',
                 'cache_tokens','tpm','rpm','current_month_cost','month_used','month_limit','month_pct',
                 'plan_pct','comp_total','comp_used','comp_pct','auto_renew',
-                'model_usages','monthly_cost','cost_total','granted_balance','topped_up_balance'];
+                'model_usages','monthly_cost','cost_total','granted_balance','topped_up_balance',
+                'daily_counts','plan_name'];
             foreach ($extra_keys as $key) {
                 if (isset($p[$key])) $entry[$key] = $p[$key];
             }

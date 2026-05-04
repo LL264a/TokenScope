@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <title>Token 监控面板</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='10.5' y='1' width='3' height='14' rx='1.5' fill='%2360a5fa'/%3E%3Crect x='3.5' y='3.5' width='17' height='3' rx='1.5' fill='%23c084fc'/%3E%3Ccircle cx='12' cy='12' r='7' stroke='%234ade80' stroke-width='1.5' fill='none'/%3E%3Ctext x='12' y='15' text-anchor='middle' font-family='system-ui,sans-serif' font-size='9' font-weight='700' fill='%234ade80'%3ET%3C/text%3E%3C/svg%3E">
-    <script>/* 版本号 */ const APP_VERSION = 'v1.9.2';</script>
+    <script>/* 版本号 */ const APP_VERSION = 'v1.9.3';</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -32,7 +32,9 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             cursor: pointer;
+            line-height: 1.3;
         }
+        .top-bar h1 #version-tag { display: block; font-size: 11px; color: #4ade80; -webkit-text-fill-color: #4ade80; }
         .top-bar .meta {
             font-size: 12px;
             color: #64748b;
@@ -67,10 +69,8 @@
         /* ====== 移动端适配 ====== */
         @media (max-width: 768px) {
             .container { padding: 12px; }
-            .platform-grid {
-                grid-template-columns: 1fr !important;
-                gap: 12px;
-            }
+            .platform-grid { gap: 12px; }
+            .platform-grid > .plan-card { flex: 1 1 100%; min-width: 0; }
             .plan-card { border-radius: 12px; }
             .card-header { padding: 14px 16px; }
             .card-header .title { font-size: 16px !important; }
@@ -141,6 +141,7 @@
             .top-bar { padding: 10px 12px; gap: 4px; }
             .top-bar h1 { font-size: 14px; }
             .top-bar h1 span { display: block; font-size: 10px !important; text-align: left; }
+            .top-bar h1 #version-tag { font-size: 10px !important; display: block; color: #4ade80; -webkit-text-fill-color: #4ade80; }
             .top-bar .nav-btns { gap: 4px; }
             .top-bar .nav-btns button { font-size: 13px; padding: 4px 8px; }
             .top-bar .nav-btns button .btn-label { display: none; }
@@ -179,15 +180,33 @@
         .page { display: none; }
         .page.active { display: block; }
 
-        /* ====== 平台卡片网格 ====== */
+        /* ====== 平台卡片 flexbox响应式 [v2-05050300] ====== */
         .platform-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            display: flex;
+            flex-wrap: wrap;
             gap: 16px;
             margin-bottom: 24px;
         }
+        .platform-grid > .plan-card {
+            flex: 0 1 auto;
+            width: 340px;
+            max-width: 100%;
+        }
         @media (min-width: 1400px) {
-            .platform-grid { grid-template-columns: repeat(3, 1fr); }
+            .platform-grid > .plan-card { width: calc(33.33% - 11px); }
+        }
+        @media (max-width: 640px) {
+            .platform-grid { gap: 12px; }
+            .platform-grid > .plan-card { flex: 1 1 100%; min-width: 0; }
+            .card-header { padding: 14px 16px; }
+            .card-header .title { font-size: 16px !important; }
+            .card-header .subtitle { font-size: 11px; }
+            .plan-info { padding: 12px 16px; gap: 10px; font-size: 11px; }
+            .quota-body { padding: 14px 16px !important; }
+            .quota-top { flex-wrap: wrap; gap: 4px; }
+            .quota-label { font-size: 13px; }
+            .quota-remaining { font-size: 13px; }
+            .quota-total-hint { display: none; }
         }
 
         /* ====== 卡片基础 ====== */
@@ -197,6 +216,8 @@
             border-radius: 16px;
             overflow: hidden;
             position: relative;
+            min-width: 0;
+            width: 100%;
         }
         .card-header {
             padding: 20px 24px;
@@ -270,6 +291,26 @@
             justify-content: space-between;
             align-items: center;
         }
+
+        /* ====== MiniMax 气泡卡片 ====== */
+        .minimax-quota-bubbles {
+            display: flex; gap: 10px; flex-wrap: wrap;
+        }
+        .minimax-quota-bubble {
+            background: rgba(30,41,59,0.6); border: 1px solid rgba(51,65,85,0.4);
+            border-radius: 8px; padding: 8px 12px; display: flex; gap: 6px; align-items: center;
+            font-size: 13px;
+        }
+        .minimax-quota-label { color: #64748b; font-size: 12px; }
+        .minimax-quota-val { color: #e2e8f0; font-weight: 600; }
+        .minimax-day-row {
+            display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(30,41,59,0.5);
+        }
+        .minimax-day-date { width: 42px; font-size: 12px; color: #64748b; flex-shrink: 0; }
+        .minimax-day-bar-wrap { flex: 1; height: 6px; background: #1e293b; border-radius: 3px; overflow: hidden; }
+        .minimax-day-bar { height: 100%; background: linear-gradient(90deg, #f59e0b, #a78bfa); border-radius: 3px; transition: width 0.4s; }
+        .minimax-day-tokens { font-size: 12px; color: #94a3b8; min-width: 56px; text-align: right; }
+        .minimax-day-count { font-size: 11px; color: #4b5563; min-width: 32px; }
 
         /* ====== 腾讯子服务 ====== */
         .sub-service { border-bottom: 1px solid #1e293b; position: relative; }
@@ -376,7 +417,7 @@
         .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
         .admin-card { background: #111827; border: 1px solid #1e293b; border-radius: 14px; padding: 24px; }
         .admin-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-        .admin-card.full-width { grid-column: 1 / -1; }
+        .admin-card.full-width { flex:0 0 100%;min-width:0; }
         .cred-table { width: 100%; border-collapse: collapse; }
         .cred-table th { text-align: left; padding: 10px 12px; font-size: 12px; color: #64748b; border-bottom: 1px solid #1e293b; }
         .cred-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #0d1117; }
@@ -445,11 +486,13 @@
         .toggle-switch input:checked + .toggle-slider { background: #34d399; }
         .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
         .toggle-slider::before { content:""; position:absolute; width:18px; height:18px; left:2px; bottom:2px; background:#e2e8f0; border-radius:50%; transition:0.3s; }
+        #sort_mode-label.on { color: #34d399; font-weight: 500; }
+        #sort_mode-label.off { color: #94a3b8; }
     </style>
 </head>
 <body>
     <div class="top-bar">
-        <h1 onclick="switchPage('monitor')"><span style="display:inline-flex;align-items:center;gap:8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect x="10.5" y="1" width="3" height="14" rx="1.5" fill="#60a5fa"/><rect x="3.5" y="3.5" width="17" height="3" rx="1.5" fill="#c084fc"/><circle cx="12" cy="12" r="7" stroke="#4ade80" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="5" stroke="#4ade80" stroke-width="0.5" stroke-dasharray="2,2" fill="none"/><text x="12" y="15" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="#4ade80">T</text><circle cx="12" cy="12" r="7" stroke="#4ade80" stroke-width="1.5" stroke-dasharray="14,30" stroke-linecap="round" fill="none"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="8s" repeatCount="indefinite"/></circle></svg>Token 监控面板</span> <span style="font-size:12px;color:#4ade80;-webkit-text-fill-color:#4ade80;opacity:0.9" id="version-tag"></span></h1>
+        <h1 onclick="switchPage('monitor')">Token 监控面板 <span style="font-size:12px;color:#4ade80;-webkit-text-fill-color:#4ade80;opacity:0.9" id="version-tag"></span></h1>
         <div class="nav-btns">
             <button class="active" onclick="switchPage('monitor')" id="btn-monitor">📊 <span class="btn-label">数据</span></button>
             <button onclick="switchPage('admin')" id="btn-admin">⚙️ <span class="btn-label">设置</span></button>
@@ -521,12 +564,12 @@
                         </div>
                         <div style="font-size:12px;color:#4b5563;margin-bottom:12px;line-height:1.6">拖动调整前端展示顺序。服务器 cron 每分钟采集，默认 30 秒间隔。</div>
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 12px;background:rgba(15,23,42,0.5);border-radius:8px">
-                            <span style="font-size:13px;color:#94a3b8">⚡ 实时排序</span>
+                            <span style="font-size:13px;color:#94a3b8;min-width:52px">⚡ 排序</span>
                             <label class="toggle-switch" style="position:relative;display:inline-block;width:40px;height:22px">
                                 <input type="checkbox" id="sort_mode-toggle" onchange="toggleSortMode()" style="opacity:0;width:0;height:0">
                                 <span class="toggle-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#1e293b;border-radius:11px;transition:0.3s"></span>
                             </label>
-                            <span id="sort_mode-label" style="font-size:12px;color:#64748b">权重排序</span>
+                            <span id="sort_mode-label" class="off">权重</span>
                         </div>
                         <div id="sort-weight-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
                     </div>
@@ -591,9 +634,11 @@
 
                 <!-- 刷新日志 -->
                 <div class="admin-card full-width">
-                    <h3>📋 刷新日志</h3>
+                    <h3>📋 刷新日志 <span style="font-size:12px;font-weight:400;color:#64748b;margin-left:8px">最近10条</span>
+                        <button onclick="clearRefreshLog()" style="float:right;background:none;border:0.5px solid #ef4444;color:#ef4444;font-size:11px;padding:2px 10px;border-radius:6px;cursor:pointer">清空</button>
+                    </h3>
                     <table class="log-table">
-                        <thead><tr><th>时间</th><th>平台</th><th>状态</th><th>消息</th><th>耗时</th></tr></thead>
+                        <thead><tr><th>时间</th><th>平台</th><th>状态</th><th>消息</th></tr></thead>
                         <tbody id="log-tbody"></tbody>
                     </table>
                 </div>
@@ -609,7 +654,8 @@ const NAMES = {
     volcano:'火山引擎', volcano_codingplan:'Coding Plan', volcano_ark:'火山方舟',
     volcano_balance:'火山方舟',
     xiaomi:'MIMO',
-    deepseek:'DeepSeek'
+    deepseek:'DeepSeek',
+    minimax:'MiniMax'
 };
 
 /* 子平台 → 父平台映射 */
@@ -951,7 +997,7 @@ function renderCookieAlert(statusList) {
 function renderNoDataCard(p) {
     const name = NAMES[p.platform] || p.platform;
     const ico = brandIcon(p.platform, 20) || '📊';
-    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">' + ico + ' ' + escHtml(name) + '</div><div class="subtitle">凭证已保存</div></div><span class="status-badge badge-warning">无数据</span></div><div style="padding:32px;text-align:center;color:#64748b"><div style="font-size:16px;margin-bottom:8px">⏳ 等待数据采集</div><div style="font-size:13px;color:#4b5563">凭证已保存，但尚未成功采集到数据。<br>可能是 Cookie 已失效，请在管理页更新凭证后刷新。</div></div><div class="card-footer"><span>' + escHtml(name) + '</span><span>-</span></div></div>';
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title" style="font-size:22px">' + ico + ' ' + escHtml(name) + '</div><div class="subtitle">凭证已保存</div></div><span class="status-badge badge-warning">无数据</span></div><div style="padding:32px;text-align:center;color:#64748b"><div style="font-size:16px;margin-bottom:8px">⏳ 等待数据采集</div><div style="font-size:13px;color:#4b5563">凭证已保存，但尚未成功采集到数据。<br>可能是 Cookie 已失效，请在管理页更新凭证后刷新。</div></div><div class="card-footer"><span>' + escHtml(name) + '</span><span>-</span></div></div>';
 }
 
 function renderPlatforms(platforms) {
@@ -985,6 +1031,7 @@ function renderPlatforms(platforms) {
         if (p.platform === 'tencent' && p.services) return renderTencentCard(p);
         if (p.platform === 'volcano' && p.services) return renderVolcanoGroupCard(p);
         if (p.platform === 'xiaomi') return renderXiaomiCard(p);
+        if (p.platform === 'minimax') return renderMiniMaxCard(p);
         if (p.quotas) return renderCodingPlan(p);
         if (p.remaining_pct !== undefined) return renderTokenPlan(p);
         return renderFallback(p);
@@ -1022,7 +1069,7 @@ function renderVolcanoGroupCard(p) {
         return '<div class="sub-service"><div class="sub-header">' + subName + '</div><div style="padding:12px;color:#4b5563">数据格式异常</div></div>';
     }).join('');
 
-    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('volcano', 20) + '火山引擎</div><div class="subtitle">' + visibleServices.length + ' 个服务 · 北京区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>火山引擎 · ' + visibleServices.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('volcano', 20) + '火山引擎</div><div class="subtitle">' + visibleServices.length + ' 个服务 · 北京区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>火山引擎 · ' + visibleServices.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 /* 子服务: 火山余额 */
@@ -1070,7 +1117,7 @@ function renderTencentCard(p) {
         return '<div class="sub-service"><div class="sub-header">' + subName + '</div><div style="padding:12px;color:#4b5563">数据格式异常</div></div>';
     }).join('');
 
-    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('tencent', 20) + '腾讯云</div><div class="subtitle">' + services.length + ' 个服务 · 广州区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>腾讯云 · ' + services.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('tencent', 20) + '腾讯云</div><div class="subtitle">' + services.length + ' 个服务 · 广州区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>腾讯云 · ' + services.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 /* 平台品牌 SVG 图标 */
@@ -1081,6 +1128,7 @@ function brandIcon(platform, size=22) {
         tencent: `<svg ${s} viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" xmlns="http://www.w3.org/2000/svg"><path d="M20.0483 17.1416C19.6945 17.4914 18.987 18.0161 17.7488 18.0161C17.2182 18.0161 16.5991 18.0161 16.3338 18.0161C15.98 18.0161 13.3268 18.0161 10.143 18.0161C12.4424 15.8298 14.3881 13.9932 14.565 13.8183C14.7419 13.6434 15.1841 13.2061 15.6263 12.8563C16.5107 12.0692 17.2182 11.9817 17.8373 11.9817C18.7217 11.9817 19.4292 12.3316 20.0483 12.8563C21.2864 13.9932 21.2864 16.0047 20.0483 17.1416ZM21.5518 11.457C20.6674 10.495 19.3408 9.88281 17.9257 9.88281C16.6875 9.88281 15.6263 10.3201 14.6534 11.0197C14.2997 11.3695 13.769 11.7194 13.3268 12.2441C12.9731 12.5939 5.36719 19.9401 5.36719 19.9401C5.80939 20.0276 6.34003 20.0276 6.78223 20.0276C7.22443 20.0276 16.0685 20.0276 16.4222 20.0276C17.1298 20.0276 17.6604 20.0276 18.191 19.9401C19.3408 19.8527 20.4905 19.4154 21.4633 18.5409C23.4975 16.6168 23.4975 13.381 21.5518 11.457Z"/><path d="M9.1701 10.9323C8.19726 10.2326 7.22442 9.88281 6.07469 9.88281C4.65965 9.88281 3.33304 10.495 2.44864 11.457C0.502952 13.4685 0.502952 16.6168 2.53708 18.6283C3.42148 19.4154 4.30589 19.8527 5.36717 19.9401L7.4013 18.0161C7.04754 18.0161 6.60533 18.0161 6.25157 18.0161C5.10185 17.9287 4.39433 17.5789 3.95212 17.1416C2.71396 15.9172 2.71396 13.9932 3.86368 12.7688C4.48277 12.1566 5.19029 11.8943 6.07469 11.8943C6.60533 11.8943 7.4013 11.9817 8.19726 12.7688C8.55102 13.1186 9.52386 13.8183 9.87763 14.1681H9.96607L11.2927 12.8563V12.7688C10.6736 12.1566 9.70075 11.3695 9.1701 10.9323Z"/><path d="M18.4564 8.74536C17.4836 6.12171 14.9188 4.28516 12.0003 4.28516C8.5511 4.28516 5.80945 6.82135 5.27881 9.96973C5.54413 9.96973 5.80945 9.88228 6.16321 9.88228C6.51697 9.88228 6.95917 9.96973 7.31294 9.96973C7.75514 7.78336 9.70082 6.20917 12.0003 6.20917C13.946 6.20917 15.6263 7.34608 16.4223 9.00773C16.4223 9.00773 16.5107 9.09518 16.5107 9.00773C17.1298 8.92027 17.8373 8.74536 18.4564 8.74536C18.4564 8.83282 18.4564 8.83282 18.4564 8.74536Z"/></svg>`,
         volcano: `<svg ${s} viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" xmlns="http://www.w3.org/2000/svg"><path d="M7.29 5.36L3.148 21.737a.215.215 0 00.203.261h8.29a.214.214 0 00.215-.261L7.7 5.359a.214.214 0 00-.41 0z" fill-opacity=".5"/><path d="M4.553 16.18l-1.406 5.558a.214.214 0 00.203.261h2.42-4.551a.214.214 0 01-.214-.26l2.275-8.961a.214.214 0 01.409 0l.864 3.402z"/><path d="M14.44.15a.214.214 0 00-.41 0L8.366 21.739a.214.214 0 00.214.261H19.9a.214.214 0 00.215-.261L14.44.151z" fill-opacity=".5"/><path d="M16.694 22h3.207a.215.215 0 00.214-.262l-1.839-6.993 1.164-4.592a.214.214 0 01.411 0l2.951 11.586a.214.214 0 01-.214.261h-5.894z"/><path d="M10.278 7.741L6.685 21.736a.214.214 0 00.214.264h7.17a.216.216 0 00.214-.166.216.216 0 000-.098L10.687 7.742a.214.214 0 00-.409 0z"/></svg>`,
         xiaomi: `<svg ${s} viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" xmlns="http://www.w3.org/2000/svg"><path d="M.958 15.936a.459.459 0 01.459.44v2.729a.46.46 0 01-.918 0v-2.729a.459.459 0 01.459-.44zm4.814-2.035a.46.46 0 01.553.45v4.754a.458.458 0 11-.918 0V15.48L3.74 17.202a.462.462 0 01-.655.016.462.462 0 01-.065-.082L.628 14.67a.459.459 0 01.658-.637l2.124 2.187 2.127-2.188a.46.46 0 01.235-.13zm2.068.004a.46.46 0 01.458.445v4.755a.46.46 0 01-.458.458.459.459 0 01-.458-.458V14.35a.459.459 0 01.458-.445zm1.973 2.014a.46.46 0 01.46.457v2.729a.46.46 0 01-.784.324.46.46 0 01-.134-.324v-2.729a.46.46 0 01.458-.458zm.002-2.045a.458.458 0 01.328.157l2.127 2.19 2.125-2.19a.459.459 0 01.784.318v4.756a.46.46 0 01-.455.458.46.46 0 01-.458-.458V15.48l-1.667 1.723a.46.46 0 01-.65.008l-.005-.005c0-.002-.002-.002-.004-.003l-2.455-2.534a.46.46 0 01-.008-.667.461.461 0 01.338-.128zm6.797 1.206a.46.46 0 01.53.651A1.966 1.966 0 0019.81 18.4a.462.462 0 01.623.18.46.46 0 01-.181.624 2.863 2.863 0 01-1.38.353l-.142-.004a2.88 2.88 0 01-2.393-4.263.461.461 0 01.274-.21zm.864-.931a2.884 2.884 0 013.915 3.914.46.46 0 01-.402.24l-.057-.004a.458.458 0 01-.164-.055.46.46 0 01-.182-.622 1.967 1.967 0 00-2.669-2.67.459.459 0 11-.441-.803zM9.59 6.368c1.481 0 1.696 1.202 1.696 1.654v2.648h-.917v-.432c-.26.346-.792.535-1.36.535-.133 0-1.289-.03-1.384-1.136-.082-.932.675-1.61 2.053-1.61h.691c0-.563-.367-.886-.983-.886-.44.013-.864.174-1.2.458l-.36-.664c.484-.379 1.012-.567 1.764-.567zm4.427.1c1.263 0 2.082.97 2.083 2.15 0 1.181-.824 2.154-2.083 2.154-1.26 0-2.084-.972-2.084-2.152 0-1.18.82-2.153 2.084-2.153zm6.801.015c.68 0 1.202.465 1.197 1.548v2.642H21.1V8.29c0-.312-.002-.98-.63-.98s-.628.667-.628.838v2.524h-.89V8.148c0-.17-.001-.838-.63-.838-.628 0-.628.668-.628.98v2.383h-.917v-4.03h.917V7a1.22 1.22 0 01.947-.516c.398 0 .76.193.982.686a1.321 1.321 0 011.195-.686z"/></svg>`,
+        minimax: `<svg ${s} viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" xmlns="http://www.w3.org/2000/svg"><path d="M16.278 2c1.156 0 2.093.927 2.093 2.07v12.501a.74.74 0 00.744.709.74.74 0 00.743-.709V9.099a2.06 2.06 0 012.071-2.049A2.06 2.06 0 0124 9.1v6.561a.649.649 0 01-.652.645.649.649 0 01-.653-.645V9.1a.762.762 0 00-.766-.758.762.762 0 00-.766.758v7.472a2.037 2.037 0 01-2.048 2.026 2.037 2.037 0 01-2.048-2.026v-12.5a.785.785 0 00-.788-.753.785.785 0 00-.789.752l-.001 15.904A2.037 2.037 0 0113.441 22a2.037 2.037 0 01-2.048-2.026V18.04c0-.356.292-.645.652-.645.36 0 .652.289.652.645v1.934c0 .263.142.506.372.638.23.131.514.131.744 0a.734.734 0 00.372-.638V4.07c0-1.143.937-2.07 2.093-2.07z"/></svg>`,
     };
     return svgs[platform] || '';
 }
@@ -1156,7 +1204,20 @@ function renderCodingPlan(p) {
         quotaHtml += '<div class="quota-item"><div class="quota-top"><span class="quota-label">' + label.icon + ' ' + label.name + ' ' + totalHint + (isBlocked?'<span style="color:#f87171;font-size:12px;font-weight:700">⛔</span>':'') + '</span><span class="quota-remaining '+c.text+'">' + remainingText + '</span></div><div class="progress-track"><div class="progress-fill '+c.fill+'" style="width:'+Math.min(pct,100)+'%"></div></div><div class="quota-footer"><span class="quota-pct '+c.text+'">'+pct.toFixed(1)+'% 已用</span><span class="quota-refresh">🔄 '+(info.refresh_at||'')+' 刷新</span></div></div>';
         if (info.used_pct>=100 && info.refresh_at && (!recoveryTime||info.refresh_at>recoveryTime)) recoveryTime=info.refresh_at;
     }
-    return '<div class="plan-card"><div class="card-header"><div><div class="title">'+(NAMES[p.platform]||p.platform)+'</div><div class="subtitle">广州 · '+(p.plan_type||'Lite')+' 套餐</div></div><span class="status-badge '+badge.cls+'">'+badge.text+'</span></div><div class="plan-info"><span>💰 '+(p.cost?p.cost+'元/月':'-')+'</span><span>⏳ '+(p.remaining_days?p.remaining_days+'天剩余':'')+'</span><span>📅 '+(p.valid_from||'')+' 至 '+(p.valid_to||'')+'</span></div><div class="quota-body" style="position:relative">'+quotaHtml+(isExhausted&&recoveryTime?'<div class="exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">'+recoveryTime+'</span><span class="countdown" data-recovery="'+recoveryTime+'">计算中...</span></div></div>':'')+'</div><div class="card-footer"><span>'+(p.plan_type||'Coding Plan')+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div></div>';
+    const planName = p.plan_name || NAMES[p.platform] || p.platform || 'Coding Plan';
+    const subtitle = (p.plan_name ? planName : (p.plan_type || 'Lite') + ' 套餐');
+    const subPrefix = p.plan_name ? '' : '广州 · ';
+    let planInfo = '';
+    if (p.plan_name) {
+        if (p.remaining_days) planInfo += '<span>⏳ ' + p.remaining_days + '天剩余</span>';
+        planInfo += '<span>🔄 ' + (p.remaining || '') + '</span>';
+    } else {
+        planInfo += '<span>💰 ' + (p.cost ? p.cost + '元/月' : '-') + '</span>';
+        if (p.remaining_days) planInfo += '<span>⏳ ' + p.remaining_days + '天剩余</span>';
+        planInfo += '<span>📅 ' + (p.valid_from || '') + ' 至 ' + (p.valid_to || '') + '</span>';
+    }
+    const footerLabel = p.plan_name || (p.plan_type || 'Coding Plan');
+    return '<div class="plan-card"><div class="card-header"><div><div class="title">'+brandIcon(p.platform,18)+(NAMES[p.platform]||p.platform)+'</div><div class="subtitle">'+subPrefix+subtitle+'</div></div><span class="status-badge '+badge.cls+'">'+badge.text+'</span></div><div class="plan-info">'+planInfo+'</div><div class="quota-body" style="position:relative">'+quotaHtml+(isExhausted&&recoveryTime?'<div class="exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">'+recoveryTime+'</span><span class="countdown" data-recovery="'+recoveryTime+'">计算中...</span></div></div>':'')+'</div><div class="card-footer"><span>'+footerLabel+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div></div>';
 }
 
 function renderTokenPlan(p) {
@@ -1241,7 +1302,7 @@ function renderXiaomiCard(p) {
             '</div>';
     }
 
-    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('xiaomi', 20) + 'MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + balanceHtml + planHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('xiaomi', 20) + 'MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + balanceHtml + planHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 function renderDeepSeekCard(p) {
@@ -1298,7 +1359,43 @@ function renderDeepSeekCard(p) {
 
     const badge = p.balance > 0 ? getStatusBadge(30) : getStatusBadge(monthlyCost > 0 ? 70 : 30);
     
-    return '<div class="plan-card" style="grid-column: 1 / -1"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('deepseek', 20) + 'DeepSeek</div><div class="subtitle">按量计费</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + balanceHtml + '</div></div><div style="padding:0 16px 12px">' + modelHtml + '</div><div class="card-footer"><span>DeepSeek Token用量</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('deepseek', 20) + 'DeepSeek</div><div class="subtitle">按量计费</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + balanceHtml + '</div></div><div style="padding:0 16px 12px">' + modelHtml + '</div><div class="card-footer"><span>DeepSeek Token用量</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+}
+
+function renderMiniMaxCard(p) {
+    const planName = p.plan_name || 'MiniMax 网关';
+    const weekly = (p.quotas && p.quotas.weekly) || {};
+    const hourly = (p.quotas && p.quotas['5h']) || {};
+    const wPct = weekly.used_pct || 0;
+    const hPct = hourly.used_pct || 0;
+    const cW = getColorClass(wPct), cH = getColorClass(hPct);
+    const badge = getStatusBadge(Math.max(wPct, hPct));
+
+    // 进度条
+    const quotaHtml =
+        '<div class="quota-item">' +
+            '<div class="quota-top"><span class="quota-label">⚡ 5 小时额度</span><span class="quota-remaining ' + cH.text + '">' + ((hourly.limit||0) - (hourly.used||0)).toLocaleString() + ' / ' + (hourly.limit||0).toLocaleString() + '</span></div>' +
+            '<div class="progress-track"><div class="progress-fill ' + cH.fill + '" style="width:' + hPct + '%"></div></div>' +
+            '<div class="quota-footer"><span class="quota-pct ' + cH.text + '">' + hPct + '% 已用</span><span class="quota-refresh">剩余 ' + ((hourly.limit||0) - (hourly.used||0)).toLocaleString() + ' 次</span></div>' +
+        '</div>' +
+        '<div class="quota-item">' +
+            '<div class="quota-top"><span class="quota-label">📅 本周额度</span><span class="quota-remaining ' + cW.text + '">' + ((weekly.limit||0) - (weekly.used||0)).toLocaleString() + ' / ' + (weekly.limit||0).toLocaleString() + '</span></div>' +
+            '<div class="progress-track"><div class="progress-fill ' + cW.fill + '" style="width:' + wPct + '%"></div></div>' +
+            '<div class="quota-footer"><span class="quota-pct ' + cW.text + '">' + wPct + '% 已用</span><span class="quota-refresh">剩余 ' + ((weekly.limit||0) - (weekly.used||0)).toLocaleString() + ' 次 · 总量 ' + (weekly.limit||0).toLocaleString() + '</span></div>' +
+        '</div>';
+
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0">' +
+        '<div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('minimax', 20) + 'MiniMax</div><div class="subtitle">' + escHtml(planName) + (p.remaining_days ? ' · ' + p.remaining_days + '天到期' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
+        '<div class="quota-body" style="position:relative">' + quotaHtml + '</div>' +
+        '<div class="card-footer"><span>' + escHtml(planName) + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+}
+
+function formatCompact(n) {
+    if (!n || n === 0) return '0';
+    if (n >= 1e8) return (n/1e8).toFixed(1) + '亿';
+    if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+    if (n >= 1e4) return (n/1e3).toFixed(0) + 'k';
+    return n.toLocaleString();
 }
 
 function updateCountdowns() {
@@ -1461,7 +1558,8 @@ async function loadSortMode() {
         if (toggle && label) {
             const isRealtime = data.mode === 'realtime';
             toggle.checked = isRealtime;
-            label.textContent = isRealtime ? '实时排序' : '权重排序';
+            label.textContent = isRealtime ? '实时' : '权重';
+            label.className = isRealtime ? 'on' : 'off';
         }
     } catch(e) { console.error(e); }
 }
@@ -1476,7 +1574,9 @@ async function toggleSortMode() {
         });
         const result = await resp.json();
         if (result.status === 'ok') {
-            label.textContent = mode === 'realtime' ? '实时排序' : '权重排序';
+            const isRealtime = mode === 'realtime';
+            label.textContent = isRealtime ? '实时' : '权重';
+            label.className = isRealtime ? 'on' : 'off';
             toast(result.message, 'success');
             lastDataHash = '';
             load();
@@ -1795,12 +1895,20 @@ async function refreshNow() {
 
 async function loadRefreshLog() {
     try {
-        const resp = await authFetch('/api/admin/refresh-log?limit=20');
+        const resp = await authFetch('/api/admin/refresh-log?limit=10');
         const logs = await resp.json();
         const tbody = document.getElementById('log-tbody');
-        if (!logs.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#4b5563">暂无刷新记录</td></tr>'; return; }
-        tbody.innerHTML = logs.map(l => '<tr><td>'+escHtml(l.timestamp_fmt||'-')+'</td><td>'+escHtml(NAMES[l.platform]||l.platform)+'</td><td class="log-'+escHtml(l.status)+'">'+(l.status==='success'?'✅ 成功':l.status==='failed'?'❌ 失败':'⚠️ 错误')+'</td><td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(l.message||'')+'">'+escHtml(l.message||'-')+'</td><td>'+(l.duration_ms?l.duration_ms+'ms':'-')+'</td></tr>').join('');
+        if (!logs.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#4b5563">暂无刷新记录</td></tr>'; return; }
+        tbody.innerHTML = logs.map(l => '<tr><td>'+escHtml(l.timestamp_fmt||'-')+'</td><td>'+escHtml(NAMES[l.platform]||l.platform)+'</td><td class="log-'+escHtml(l.status)+'">'+(l.status==='success'?'✅ 成功':l.status==='failed'?'❌ 失败':'⚠️ 错误')+'</td><td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(l.message||'')+'">'+escHtml(l.message||'-')+'</td></tr>').join('');
     } catch(e) { console.error(e); }
+}
+
+async function clearRefreshLog() {
+    try {
+        await authFetch('/api/admin/refresh-log', {method:'DELETE'});
+        toast('日志已清空', 'success');
+        document.getElementById('log-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:#4b5563">暂无刷新记录</td></tr>';
+    } catch(e) { if (e.message !== '未授权') toast('清空失败', 'error'); }
 }
 
 /* ====== 初始化 ====== */

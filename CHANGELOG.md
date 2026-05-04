@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.9.3 (2026-05-05)
+
+### Server
+
+- **新增 MiniMax 平台支持**: 第三方网关 minnimax.chat 集成，显示 5h/周额度进度条 + 套餐到期时间
+- **品牌图标**: MiniMax SVG Logo（来自 LobeHub）
+- **排序开关 UX 优化**: 去重标题文字，开关状态用颜色高亮（绿色=实时/灰色=权重）
+
+### Bug Fixes
+
+- 修复 `$GLOBALS['TM_PLATFORMS']` → `TM_PLATFORMS`，单平台刷新/检查不再返回 404
+- 修复 `renderCodingPlan` 卡片根据 `plan_name` 自适应显示（第三方平台不再显示"广州·套餐"）
+- 修复 JS 语法错误（多余 `}` 导致全前端崩溃）
+- `plan_name` 和 `daily_counts` 加入 db/api 白名单，确保数据完整传输
+
 ## v1.9.2 (2026-05-04)
 
 ### Server

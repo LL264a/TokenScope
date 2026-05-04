@@ -1,10 +1,10 @@
 <?php
 /**
- * Token Monitor v1.9.2 - 配置文件
+ * Token Monitor v1.9.3 - 配置文件
  */
 
 // ============ 版本 ============
-define('APP_VERSION', 'v1.9.2');
+define('APP_VERSION', 'v1.9.3');
 
 // ============ 路径 ============
 define('TM_ROOT', __DIR__);
@@ -54,6 +54,15 @@ define('TM_PLATFORMS', [
         'api_key_hint' => '粘贴 DeepSeek API Key（从 https://platform.deepseek.com/api_keys 获取）→ 显示账户余额（¥）',
         'cookie_hint' => '粘贴 Token（登录 platform.deepseek.com → F12 → Application → LocalStorage → userToken → 复制value值）→ 显示按模型用量明细\n\n也可同时提供：{"api_key":"sk-xxx","token":"xxx"} 同时显示余额和用量',
     ],
+    'minimax' => [
+        'name' => 'MiniMax',
+        'icon' => '',
+        'services' => [
+            ['key' => 'minimax', 'name' => 'MiniMax 网关用量', 'plan_type' => 'minimax'],
+        ],
+        'credential_types' => ['api_key'],
+        'api_key_hint' => '粘贴 minnimax.chat API Key（以 gw- 开头）→ 显示额度与用量',
+    ],
 ]);
 
 // ============ 子计划→父平台映射 ============
@@ -65,6 +74,7 @@ define('TM_SUB_TO_PARENT', [
     'volcano' => 'volcano',
     'xiaomi' => 'xiaomi',
     'deepseek' => 'deepseek',
+    'minimax' => 'minimax',
 ]);
 
 // ============ 腾讯云 API ============

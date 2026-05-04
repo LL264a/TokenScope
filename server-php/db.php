@@ -83,7 +83,7 @@ function tm_get_latest_usage(): array {
         'remaining_pct','balance_available','balance_cash','balance_credit','balance_frozen','balance_arrears',
         'balance','gift_balance','cash_balance','frozen_balance','cache_tokens','tpm','rpm','current_month_cost',
         'month_used','month_limit','month_pct','plan_pct','comp_total','comp_used','comp_pct','auto_renew','plan_name',
-        'cost_total','monthly_cost','model_usages','granted_balance','topped_up_balance'];
+        'cost_total','monthly_cost','model_usages','granted_balance','topped_up_balance','daily_counts'];
 
     foreach ($rows as $row) {
         $item = $row;
@@ -193,7 +193,7 @@ function tm_add_refresh_log(string $platform, string $status, string $message, i
     $db = tm_get_db();
     $stmt = $db->prepare("INSERT INTO refresh_log (timestamp, platform, status, message, duration_ms) VALUES (?, ?, ?, ?, ?)");
     $stmt->execute([time(), $platform, $status, $message, $duration_ms]);
-    $db->exec("DELETE FROM refresh_log WHERE id NOT IN (SELECT id FROM refresh_log ORDER BY id DESC LIMIT 100)");
+    $db->exec("DELETE FROM refresh_log WHERE id NOT IN (SELECT id FROM refresh_log ORDER BY id DESC LIMIT 50)");
 }
 
 function tm_get_refresh_log(int $limit=30): array {

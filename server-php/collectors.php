@@ -913,6 +913,7 @@ function tm_do_refresh_all(): array {
                 'volcano' => tm_collect_volcano($cookie_str),
                 'xiaomi' => tm_collect_xiaomi($cookie_str),
                 'deepseek' => tm_collect_deepseek($cookie_str),
+                'minimax' => tm_collect_minimax($cookie_str),
                 default => [tm_error_item($platform, "不支持的平台: $platform")],
             };
 
@@ -937,7 +938,7 @@ function tm_do_refresh_all(): array {
                         'cost' => $item['cost'] ?? 0,
                         'remaining' => $item['remaining'] ?? '',
                     ];
-                    $extra = array_filter($item, fn($v, $k) => !in_array($k, ['total_tokens','input_tokens','output_tokens','cost','remaining','platform','plan_name','error']), ARRAY_FILTER_USE_BOTH);
+                    $extra = array_filter($item, fn($v, $k) => !in_array($k, ['total_tokens','input_tokens','output_tokens','cost','remaining','platform','error']), ARRAY_FILTER_USE_BOTH);
                     tm_save_usage($sub_platform, $std['total_tokens'], $std['input_tokens'], $std['output_tokens'], $std['cost'], $std['remaining'], $extra, $batch_ts);
                     tm_add_refresh_log($sub_platform, 'success', "total={$std['total_tokens']}", $duration);
                     $results[$sub_platform] = ['status' => 'success', 'duration_ms' => $duration];
@@ -972,6 +973,7 @@ function tm_do_refresh_platform(string $platform): array {
             'volcano' => tm_collect_volcano($cookie_str),
             'xiaomi' => tm_collect_xiaomi($cookie_str),
             'deepseek' => tm_collect_deepseek($cookie_str),
+            'minimax' => tm_collect_minimax($cookie_str),
             default => [tm_error_item($platform, "不支持的平台: $platform")],
         };
 
@@ -1025,6 +1027,7 @@ function tm_do_check_credential(string $platform): array {
             'volcano' => tm_collect_volcano($cookie_str),
             'xiaomi' => tm_collect_xiaomi($cookie_str),
             'deepseek' => tm_collect_deepseek($cookie_str),
+            'minimax' => tm_collect_minimax($cookie_str),
             default => [tm_error_item($platform, "不支持的平台: $platform")],
         };
 
@@ -1061,4 +1064,103 @@ function tm_do_check_credential(string $platform): array {
         $duration = intval((microtime(true) - $start) * 1000);
         return ['status' => 'error', 'error' => $e->getMessage(), 'platform' => $platform, 'duration_ms' => $duration];
     }
+}
+
+function tm_collect_minimax(string $credential): array {
+    // 兼容 JSON 凭证和原始 key
+    $api_key = $credential;
+    $decoded = json_decode($credential, true);
+    if (is_array($decoded) && isset($decoded['api_key'])) {
+        $api_key = $decoded['api_key'];
+    }
+
+    $result = [
+        'platform' => 'minimax',
+        'total_tokens' => 0,
+        'input_tokens' => 0,
+        'output_tokens' => 0,
+        'cost' => 0,
+        'remaining' => '-',
+    ];
+
+    $headers = ['x-api-key' => $api_key];
+
+    // 1. 查用量/额度
+    $resp = tm_http_get("https://minnimax.chat/v1/usage", $headers);
+    if (!$resp || $resp['code'] !== 200) {
+        $code = $resp ? $resp['code'] : 0;
+        return [tm_error_item('minimax', "用量查询失败 (HTTP $code)")];
+    }
+
+    $usage_data = json_decode($resp['body'], true);
+    if (!is_array($usage_data)) {
+        return [tm_error_item('minimax', "用量数据解析失败")];
+    }
+
+    // 取出额度信息
+    $rolling_5h = $usage_data['rolling_5h'] ?? [];
+    $weekly = $usage_data['weekly'] ?? [];
+    $daily_counts = $usage_data['daily_counts'] ?? [];
+    $plan_name = $usage_data['plan_name'] ?? 'MiniMax';
+    $expires_at = $usage_data['expires_at'] ?? '';
+
+    $result['plan_name'] = $plan_name;
+    $result['remaining_days'] = $expires_at ? max(0, ceil((strtotime($expires_at) - time()) / 86400)) : 0;
+
+    // 计算汇总用量（取 daily_counts 的最近7天总和）
+    $total_input = 0;
+    $total_output = 0;
+    foreach ($daily_counts as $day) {
+        $total_input += intval($day['input_tokens'] ?? 0);
+        $total_output += intval($day['output_tokens'] ?? 0);
+    }
+    $result['total_tokens'] = $total_input + $total_output;
+    $result['input_tokens'] = $total_input;
+    $result['output_tokens'] = $total_output;
+    $result['daily_counts'] = $daily_counts;
+
+    // 5小时额度
+    $h_limit = intval($rolling_5h['limit'] ?? 0);
+    $h_used = intval($rolling_5h['used'] ?? 0);
+    $w_limit = intval($weekly['limit'] ?? 0);
+    $w_used = intval($weekly['used'] ?? 0);
+
+    // remaining 摘要
+    $parts = [];
+    if ($h_limit > 0) {
+        $h_remain = $h_limit - $h_used;
+        $parts[] = "5h:{$h_remain}次";
+    }
+    if ($w_limit > 0) {
+        $w_remain = $w_limit - $w_used;
+        $w_pct = round($w_used / $w_limit * 100, 1);
+        $parts[] = "周:{$w_remain}次 ({$w_pct}%已用)";
+    }
+    $result['remaining'] = implode(' | ', $parts);
+
+    // quotas 给前端渲染进度条
+    $quotas = [];
+    if ($h_limit > 0) {
+        $quotas['5h'] = ['total' => $h_limit, 'used' => $h_used, 'used_pct' => round($h_used / $h_limit * 100, 1)];
+    }
+    if ($w_limit > 0) {
+        $quotas['weekly'] = ['total' => $w_limit, 'used' => $w_used, 'used_pct' => round($w_used / $w_limit * 100, 1)];
+    }
+    $result['quotas'] = $quotas;
+    $result['remaining_pct'] = $w_limit > 0 ? round(($w_limit - $w_used) / $w_limit * 100, 1) : 100;
+
+    // 2. 查日志（最近30条汇总）
+    $resp_logs = tm_http_get("https://minnimax.chat/v1/logs?page=1&page_size=30", $headers);
+    $recent_in = 0; $recent_out = 0;
+    if ($resp_logs && $resp_logs['code'] === 200) {
+        $logs_data = json_decode($resp_logs['body'], true);
+        $logs = $logs_data['logs'] ?? [];
+        foreach ($logs as $l) {
+            $recent_in += intval($l['input_tokens'] ?? 0);
+            $recent_out += intval($l['output_tokens'] ?? 0);
+        }
+    }
+    $result['monthly_cost'] = $recent_in + $recent_out;
+
+    return [$result];
 }
