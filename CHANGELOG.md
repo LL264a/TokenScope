@@ -1,6 +1,23 @@
 # Changelog
 
-## v1.9.3 (2026-05-05)
+## v1.9.4 (2026-05-08)
+
+### 腾讯云 CAPI 采集革命
+- **新架构**: 服务器端 Chromium 无头浏览器自动采集（每5分钟），不再依赖本地 CDP
+- **CAPI 拦截 v2** (inject.js): 全局拦截所有 cgi/capi 响应，URL 去重 + 1.5s debounce
+- **扩展推送修复** (content.js): 改用 receive.php 直推，修复 async/await + DOM 就绪问题
+- **TOTP 硬编码兜底** (background.js): 重装扩展也不丢密钥
+- **PHP 解析器** (collectors.php): 新增 tm_tencent_parse_pkg_for_api + tm_tencent_parse_plan_usage_for_api，支持新旧两种格式
+- **新端点** (receive.php): 新增 capi_data 类型，TOTP 免认证
+- **服务器自采集** (deploy/tencent_auto_collect.py): 无头浏览器自采集脚本 + cron 每5分钟
+- **Token Plan 支持**: 首次采集十腾云 Hy Token Plan (100M) 和 Token Plan (35M)
+
+### Bug 修复
+- 扩展 inject.js 用 cmd name 去重导致 DescribeTokenPlanUsage 第2个版本丢失
+- content.js async 语法错误导致脚本崩溃
+- content.js showBadge 在 body 未就绪时调用崩溃
+- background.js TOTP 依赖 storage，重装扩展后失效
+- PHP tm_fmt_num 函数名错误 (应为 tm_fmt_tokens)
 
 ### Server
 

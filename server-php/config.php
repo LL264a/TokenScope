@@ -28,7 +28,7 @@ define('TM_PLATFORMS', [
         'name' => '火山引擎',
         'icon' => '🌋',
         'services' => [
-            ['key' => 'volcano_codingplan', 'name' => 'Coding Plan', 'plan_type' => 'codingplan'],
+            ['key' => 'volcano_codingplan', 'name' => 'Coding Plan + Agent Plan', 'plan_type' => 'codingplan'],
             ['key' => 'volcano', 'name' => '方舟余额', 'plan_type' => 'volcano'],
         ],
         'credential_types' => ['cookie', 'api_key'],
@@ -58,10 +58,21 @@ define('TM_PLATFORMS', [
         'name' => 'MiniMax',
         'icon' => '',
         'services' => [
-            ['key' => 'minimax', 'name' => 'MiniMax 网关用量', 'plan_type' => 'minimax'],
+            ['key' => 'minimax', 'name' => 'Token Plan 用量', 'plan_type' => 'minimax'],
+            ['key' => 'minimax_gateway', 'name' => '中转站网关', 'plan_type' => 'minimax_gateway'],
         ],
-        'credential_types' => ['api_key'],
-        'api_key_hint' => '粘贴 minnimax.chat API Key（以 gw- 开头）→ 显示额度与用量',
+        'credential_types' => ['cookie', 'api_key'],
+        'cookie_hint' => '官方平台 Cookie（登录 platform.minimaxi.com → F12 → Application → Cookies → 复制全部）→ 显示 Token Plan 用量与模型明细',
+        'api_key_hint' => '中转站 API Key（minnimax.chat，以 gw- 开头）→ 显示 5h/周额度',
+    ],
+    'gpt_gateway' => [
+        'name' => 'GPT中转',
+        'icon' => '',
+        'services' => [
+            ['key' => 'gpt_gateway', 'name' => 'API Gateway', 'plan_type' => 'gpt_gateway'],
+        ],
+        'credential_types' => ['token'],
+        'token_hint' => '粘贴 auth_token（登录中转站 → F12 → Application → Local Storage → auth_token → 复制 value）',
     ],
 ]);
 
@@ -75,6 +86,8 @@ define('TM_SUB_TO_PARENT', [
     'xiaomi' => 'xiaomi',
     'deepseek' => 'deepseek',
     'minimax' => 'minimax',
+    'minimax_gateway' => 'minimax',
+    'gpt_gateway' => 'gpt_gateway',
 ]);
 
 // ============ 腾讯云 API ============

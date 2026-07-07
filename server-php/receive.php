@@ -79,6 +79,15 @@ try {
             'size' => $size,
         ]);
 
+    } elseif ($type === 'capi_data') {
+        // CAPI 拦截数据（扩展推送腾讯云 API 数据）
+        $all = $payload['all'] ?? [];
+        $platform = $payload['platform'] ?? 'tencent';
+        // 直接存为 api_data 凭证
+        tm_save_credential($platform, 'api_data', json_encode([['all' => $all]], JSON_UNESCAPED_UNICODE), 'CAPI');
+        $size = strlen(json_encode($input));
+        echo json_encode(['status' => 'ok', 'type' => 'capi_data', 'apis' => count($all), 'size' => $size]);
+
     } elseif ($type === 'cookie_status') {
         // cookie_status 数据: [{"platform":"...","healthy":bool,"message":"..."}, ...]
         $updated = 0;

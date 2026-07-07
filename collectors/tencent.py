@@ -31,7 +31,16 @@ class TencentCollector(BaseCollector):
         cookie_str 可以是：
         1. 纯 Cookie 字符串（需要额外配置 uin/ownerUin/csrfCode）
         2. JSON 格式: {"cookie": "xxx", "uin": "xxx", "ownerUin": "xxx", "csrfCode": "xxx"}
+
+        优先使用扩展推送的 CAPI 数据（api_data 凭证），
+        避免服务端 CAPI 验证失败导致数据为空。
         """
+        # === 优先：使用扩展推送的 api_data ===
+        pushed = self._load_pushed_api_data()
+        if pushed:
+            return pushed
+
+        # === 降级：直调 CAPI（可能因 IP/csrfCode 失败） ===
         import httpx
 
         # 解析凭证
@@ -48,7 +57,7 @@ class TencentCollector(BaseCollector):
         params_base = self._make_params_base(uin, ownerUin, csrfCode)
 
         results = []
-        self._cookie_expired = False  # 重置 Cookie 状态
+        self._cookie_expired = False
         async with httpx.AsyncClient(verify=False, timeout=20, follow_redirects=False) as client:
             # ---- 1. Coding Plan (DescribePkg) ----
             try:
@@ -57,7 +66,6 @@ class TencentCollector(BaseCollector):
                     cp_data["platform"] = "tencent_codingplan"
                     results.append(cp_data)
                 else:
-                    # 数据为空大概率也是 Cookie 失效
                     self._cookie_expired = True
                     results.extend(self._error_result("tencent_codingplan", "Cookie 已失效，请重新获取", cookie_expired=True))
             except Exception as e:
@@ -67,7 +75,6 @@ class TencentCollector(BaseCollector):
             try:
                 plan_list = await self._fetch_plan_list(client, headers, params_base)
                 if not plan_list:
-                    # 未找到计划大概率也是 Cookie 失效
                     self._cookie_expired = True
                     results.extend(self._error_result("tencent_hy_tokenplan", "Cookie 已失效，请重新获取", cookie_expired=True))
                     results.extend(self._error_result("tencent_tokenplan", "Cookie 已失效，请重新获取", cookie_expired=True))
@@ -90,6 +97,164 @@ class TencentCollector(BaseCollector):
                 results.extend(self._error_result("tencent_tokenplan", str(e)))
 
         return results
+
+    # ============ 扩展推送数据加载 ============
+
+    def _load_pushed_api_data(self) -> Optional[list[dict]]:
+        """从 DB 加载扩展推送的 CAPI 数据（api_data 凭证）
+
+        返回标准采集结果格式，或 None（无数据/解析失败）
+        """
+        try:
+            from db import get_credential_data
+            cred = get_credential_data("tencent", cred_type="api_data")
+            if not cred:
+                return None
+
+            # 兼容两种格式：dict 或 list
+            raw_data = cred
+            if isinstance(raw_data, dict) and "raw" in raw_data:
+                raw_data = json.loads(raw_data["raw"])
+
+            if not isinstance(raw_data, list):
+                raw_data = [raw_data]
+
+            results = []
+
+            for packet in raw_data:
+                # 新格式：{all: [{cmd, data, url}]}
+                all_list = packet.get("all") if isinstance(packet, dict) else None
+                if all_list and isinstance(all_list, list):
+                    for item in all_list:
+                        cmd = item.get("cmd", "")
+                        data = item.get("data", {})
+                        parsed = self._parse_capi_response(cmd, data)
+                        if parsed:
+                            results.append(parsed)
+                    continue
+
+                # 旧格式：{pkgs: [...]} 或 [{pkgs: [...]}]
+                pkgs = packet.get("pkgs") if isinstance(packet, dict) else packet
+                if isinstance(pkgs, list) and len(pkgs) > 0:
+                    # 创建一个 DescribePkg 格式数据
+                    fake_resp = {"PkgList": pkgs}
+                    parsed = self._parse_capi_response("DescribePkg", fake_resp)
+                    if parsed:
+                        results.append(parsed)
+
+            return results if results else None
+
+        except Exception as e:
+            import logging
+            logging.getLogger("tencent").warning(f"加载推送数据失败: {e}")
+            return None
+
+    def _parse_capi_response(self, cmd: str, response: dict) -> Optional[dict]:
+        """根据 CAPI 命令名解析响应数据为采集结果格式"""
+        try:
+            if cmd == "DescribePkg":
+                pkgs = response.get("PkgList", [])
+                if not pkgs:
+                    return None
+                return self._build_coding_plan_data(pkgs[0])
+
+            elif cmd == "ListUserTokenPlans":
+                # ListUserTokenPlans 本身不返回用量，只返回计划列表
+                # 后续 DescribeTokenPlanUsage 会提供用量
+                return None
+
+            elif cmd == "DescribeTokenPlanUsage":
+                usage_list = response.get("TokenPlanUsageList", [])
+                if not usage_list:
+                    return None
+                return self._build_token_plan_usage_data(usage_list[0])
+
+        except Exception as e:
+            import logging
+            logging.getLogger("tencent").warning(f"[{cmd}] 解析失败: {e}")
+        return None
+
+    def _build_coding_plan_data(self, pkg: dict) -> dict:
+        """从单个 DescribePkg 套餐数据构建标准结果"""
+        data = {
+            "total_tokens": 0, "input_tokens": 0, "output_tokens": 0,
+            "cost": 40, "remaining": "", "plan_name": "codingplan",
+            "plan_type": pkg.get("PkgName", "Lite"),
+            "platform": "tencent_codingplan",
+        }
+        quotas = {}
+
+        data["cost"] = pkg.get("Price", 40)
+        remaining_days = pkg.get("RemainingDays", 0)
+        if remaining_days:
+            data["remaining_days"] = remaining_days
+
+        usage_detail = pkg.get("UsageDetail", {})
+        for api_key, internal_key in [("PerFiveHour", "5h"), ("PerWeek", "weekly"), ("PerMonth", "monthly")]:
+            detail = usage_detail.get(api_key, {})
+            if detail:
+                total = int(detail.get("Total", 0))
+                used_pct = float(detail.get("UsagePercent", 0))
+                if used_pct == 0 and total > 0:
+                    used_pct = float(detail.get("Used", 0)) / total * 100
+                end_time = detail.get("EndTime", "")
+                quotas[internal_key] = {
+                    "total": total,
+                    "used_pct": used_pct,
+                    "refresh_at": end_time,
+                }
+
+        data["quotas"] = quotas
+
+        if "monthly" in quotas:
+            data["total_tokens"] = quotas["monthly"]["total"]
+            data["input_tokens"] = quotas["monthly"]["total"] * quotas["monthly"]["used_pct"] // 100
+            data["output_tokens"] = quotas["monthly"]["total"] - data["input_tokens"]
+
+        parts = []
+        if "5h" in quotas:
+            parts.append(f"5h:{quotas['5h']['used_pct']:.1f}%")
+        if "weekly" in quotas:
+            parts.append(f"周:{quotas['weekly']['used_pct']:.1f}%")
+        if "monthly" in quotas:
+            parts.append(f"月:{quotas['monthly']['used_pct']:.1f}%")
+        data["remaining"] = " | ".join(parts) if parts else ""
+
+        return data
+
+    def _build_token_plan_usage_data(self, item: dict) -> dict:
+        """从单个 DescribeTokenPlanUsage 数据构建标准结果"""
+        pkg = item.get("TokenPlanPackage", {})
+        res = item.get("TokenPlanResource", {})
+
+        capacity = int(res.get("CycleCapacity", 0))
+        total_usage = int(res.get("CycleTotalUsage", 0))
+        input_usage = int(res.get("CycleInputUsage", 0))
+        output_usage = int(res.get("CycleOutputUsage", 0))
+        remain = int(res.get("CycleRemain", 0))
+
+        plan_id = pkg.get("Plan", "")
+        plan_name = _PLAN_NAMES.get(plan_id, plan_id)
+        is_hy = "hy" in plan_id or plan_id == "tp_hy_standard"
+
+        remaining_pct = (remain / capacity * 100) if capacity > 0 else 0
+
+        data = {
+            "total_tokens": capacity,
+            "input_tokens": total_usage,
+            "output_tokens": remain,
+            "cost": 0,
+            "remaining": f"{remaining_pct:.1f}% ({self._fmt(remain)})",
+            "plan_name": "hy_tokenplan" if is_hy else "tokenplan",
+            "plan_type": plan_name,
+            "platform": "tencent_hy_tokenplan" if is_hy else "tencent_tokenplan",
+            "remaining_pct": round(remaining_pct, 1),
+            "daily_usage": res.get("DailyUsageList", []),
+            "start_time": pkg.get("StartTime", ""),
+            "expire_time": pkg.get("ExpireTime", ""),
+        }
+
+        return data
 
     # ============ 凭证解析 ============
 
@@ -249,6 +414,8 @@ class TencentCollector(BaseCollector):
             if detail:
                 total = int(detail.get("Total", 0))
                 used_pct = float(detail.get("UsagePercent", 0))
+                if used_pct == 0 and total > 0:
+                    used_pct = float(detail.get("Used", 0)) / total * 100
                 end_time = detail.get("EndTime", "")
                 quotas[internal_key] = {
                     "total": total,

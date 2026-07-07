@@ -165,102 +165,152 @@ async function loadData() {
       return;
     }
   }
+
+  // 第一次打开：无凭证自动隐藏，有凭证自动取消隐藏
+  if (!window._autoHidden && Object.keys(credPlatforms).length > 0) {
+    window._autoHidden = true;
+    let changed = false;
+    for (const p of PLATFORMS) {
+      const hasCred = credPlatforms[p.id] !== undefined;
+      if (hasCred && hiddenPlatforms.includes(p.id)) {
+        hiddenPlatforms = hiddenPlatforms.filter(h => h !== p.id);
+        changed = true;
+      }
+      if (!hasCred && !hiddenPlatforms.includes(p.id)) {
+        hiddenPlatforms.push(p.id);
+        changed = true;
+      }
+    }
+    if (changed) saveHidden();
+  }
+
   renderPlatforms();
 }
 
 // ============ UI ============
+let hiddenPlatforms = [];
+
+async function loadHidden() {
+  const r = await chrome.storage.local.get('hidden_platforms');
+  hiddenPlatforms = r.hidden_platforms || [];
+}
+
+async function saveHidden() {
+  await chrome.storage.local.set({ hidden_platforms: hiddenPlatforms });
+}
+
 function renderPlatforms() {
   platformsEl.innerHTML = '';
-  const cookiePlatforms = PLATFORMS.filter(p => credPlatforms[p.id]);
-  const otherPlatforms = PLATFORMS.filter(p => !credPlatforms[p.id]);
+  const allPlatforms = PLATFORMS;
 
-  if (cookiePlatforms.length === 0 && otherPlatforms.length === 0) {
-    platformsEl.innerHTML = '<div style="text-align:center;color:#475569;padding:20px;font-size:13px">暂无数据</div>';
+  if (allPlatforms.length === 0) {
+    platformsEl.innerHTML = '<div style="text-align:center;color:#475569;padding:20px;font-size:13px">暂无已采集平台</div>';
     launchAllBtn.disabled = true; return;
   }
 
-  cookiePlatforms.forEach((p, idx) => {
+  // 先显示可见的平台
+  let visiblePlatforms = allPlatforms.filter(p => !hiddenPlatforms.includes(p.id));
+  let hiddenPlatformsList = allPlatforms.filter(p => hiddenPlatforms.includes(p.id));
+
+  if (visiblePlatforms.length === 0) {
+    platformsEl.innerHTML = '<div style="text-align:center;color:#475569;padding:20px;font-size:13px">所有平台已隐藏，点击下方显示</div>';
+  }
+
+  visiblePlatforms.forEach((p, idx) => {
     const cred = credPlatforms[p.id];
     const saved = accounts[p.id] || {};
     const color = PLATFORM_COLORS[idx % PLATFORM_COLORS.length];
+    const chkId = 'chk-' + p.id;
     const card = document.createElement('div');
     card.className = 'platform-card';
+    card.dataset.pid = p.id;
     card.innerHTML =
       '<div class="platform-header">' +
+      '<label class="pf-checkbox" style="display:flex;align-items:center;gap:6px;cursor:pointer" data-action="">' +
+      '<input type="checkbox" id="' + chkId + '" class="pf-chk" checked>' +
       '<span class="status-dot dot-green"></span>' +
       '<span class="name" style="border-left:3px solid ' + color + ';padding-left:8px">' + escHtml(p.name) + '</span>' +
-      '<span style="font-size:11px;color:#94a3b8">🍪 ' + (escHtml(cred.note) || '已采集') + '</span></div>' +
+      '</label>' +
+      '<span style="font-size:11px;color:#94a3b8">' + (escHtml(cred && cred.note) || '已采集') + '</span>' +
+      '<span class="hide-btn" style="font-size:11px;color:#64748b;flex-shrink:0;cursor:pointer">🙈 隐藏</span></div>' +
       '<div class="platform-body">' +
       '<input type="text" class="pf-account" placeholder="账号（可选）" value="' + escHtml(saved.account||'') + '">' +
       '<div class="row2"><input type="password" class="pf-password" placeholder="密码" value="' + escHtml(saved.password||'') + '">' +
       '<button class="btn-sm btn-primary pf-save">保存</button></div></div>';
-    const header = card.querySelector('.platform-header');
-    const body = card.querySelector('.platform-body');
-    header.addEventListener('click', () => body.classList.toggle('open'));
-    card.querySelector('.pf-save').addEventListener('click', async () => {
-      const account = card.querySelector('.pf-account').value.trim();
-      const password = card.querySelector('.pf-password').value.trim();
-      accounts[p.id] = { account, password };
-      await chrome.storage.local.set({ encrypted_accounts: btoa(JSON.stringify(accounts)) });
-      toast(p.name + ' 已保存', 'success');
+    // 用事件委托：直接绑定在 card 上
+    card.addEventListener('click', function(e) {
+      const target = e.target;
+      if (target.classList.contains('hide-btn')) {
+        const pid = this.dataset.pid;
+        hiddenPlatforms.push(pid);
+        saveHidden();
+        renderPlatforms();
+        toast((PLATFORMS.find(p => p.id === pid) || {}).name + ' 已隐藏', 'info');
+        return;
+      }
+      if (target.classList.contains('pf-save')) {
+        const acct = this.querySelector('.pf-account').value.trim();
+        const pw = this.querySelector('.pf-password').value.trim();
+        accounts[p.id] = { account: acct, password: pw };
+        chrome.storage.local.set({ encrypted_accounts: btoa(JSON.stringify(accounts)) });
+        toast(p.name + ' 已保存', 'success');
+        return;
+      }
+      // 点 header 展开/收起
+      if (target.tagName !== 'INPUT' && !target.closest('.platform-body')) {
+        const body = this.querySelector('.platform-body');
+        if (body) body.classList.toggle('open');
+      }
     });
     platformsEl.appendChild(card);
   });
 
-  if (otherPlatforms.length > 0) {
-    const link = document.createElement('div');
-    link.style.cssText = 'font-size:11px;color:#64748b;text-align:center;padding:6px;cursor:pointer;';
-    link.textContent = '+ ' + otherPlatforms.length + ' 个未采集平台 (展开)';
-    link.addEventListener('click', () => {
-      link.style.display = 'none';
-      otherPlatforms.forEach((p, idx) => {
-        const saved = accounts[p.id] || {};
-        const color = PLATFORM_COLORS[(cookiePlatforms.length + idx) % PLATFORM_COLORS.length];
-        const card = document.createElement('div');
-        card.className = 'platform-card';
-        card.innerHTML =
-          '<div class="platform-header">' +
-          '<span class="status-dot dot-gray"></span>' +
-          '<span class="name" style="border-left:3px solid ' + color + ';padding-left:8px">' + escHtml(p.name) + '</span>' +
-          '<span style="font-size:11px;color:#94a3b8">❌ 无 Cookie</span></div>' +
-          '<div class="platform-body">' +
-          '<input type="text" class="pf-account" placeholder="账号（可选）" value="' + escHtml(saved.account||'') + '">' +
-          '<div class="row2"><input type="password" class="pf-password" placeholder="密码" value="' + escHtml(saved.password||'') + '">' +
-          '<button class="btn-sm btn-primary pf-save">保存</button></div></div>';
-        card.querySelector('.platform-header').addEventListener('click', () => card.querySelector('.platform-body').classList.toggle('open'));
-        card.querySelector('.pf-save').addEventListener('click', async () => {
-          const account = card.querySelector('.pf-account').value.trim();
-          const password = card.querySelector('.pf-password').value.trim();
-          accounts[p.id] = { account, password };
-          await chrome.storage.local.set({ encrypted_accounts: btoa(JSON.stringify(accounts)) });
-          toast(p.name + ' 已保存', 'success');
-        });
-        platformsEl.appendChild(card);
-      });
+  // 如果已隐藏的平台 > 0，显示"显示已隐藏"
+  if (hiddenPlatformsList.length > 0) {
+    const showAllBtn = document.createElement('div');
+    showAllBtn.style.cssText = 'text-align:center;padding:8px;font-size:12px';
+    const showLink = document.createElement('span');
+    showLink.className = 'toggle-link';
+    showLink.textContent = '📂 显示已隐藏的 ' + hiddenPlatformsList.length + ' 个平台';
+    showLink.addEventListener('click', async () => {
+      hiddenPlatforms = [];
+      await saveHidden();
+      renderPlatforms();
+      toast('已显示所有平台', 'info');
     });
-    platformsEl.appendChild(link);
+    showAllBtn.appendChild(showLink);
+    platformsEl.appendChild(showAllBtn);
   }
 
-  const active = cookiePlatforms.length;
-  launchAllBtn.textContent = active > 0 ? ('⚡ 一键打开 (' + active + ')') : '⚡ 暂无已采集平台';
-  launchAllBtn.disabled = active === 0;
+  updateLaunchBtn();
+}
+
+function updateLaunchBtn() {
+  const checked = document.querySelectorAll('.pf-chk:checked').length;
+  launchAllBtn.textContent = checked > 0 ? ('⚡ 一键打开 (' + checked + ')') : '⚡ 选择平台';
+  launchAllBtn.disabled = checked === 0;
 }
 
 async function launchAll() {
-  // 打开所有平台，不管有没有 Cookie
-  const targets = PLATFORMS;
-  if (targets.length === 0) { toast('没有可打开的平台', 'error'); return; }
+  const checked = [...document.querySelectorAll('.pf-chk:checked')];
+  if (checked.length === 0) { toast('请勾选要打开的平台', 'error'); return; }
+  const checkedIds = checked.map(c => c.id.replace('chk-', ''));
+  const targets = PLATFORMS.filter(p => checkedIds.includes(p.id));
+
   launchAllBtn.disabled = true;
   launchAllBtn.textContent = '⏳ 打开 ' + targets.length + ' 个...';
+
   for (const p of targets) {
     const saved = accounts[p.id] || {};
-    chrome.storage.session.set({ ['login_' + p.id]: saved });
-    chrome.tabs.create({ url: p.url });
-    await new Promise(r => setTimeout(r, 800));
+    await chrome.storage.session.set({ ['login_' + p.id]: saved });
   }
-  launchAllBtn.textContent = '✅ 已全部打开';
-  toast('已打开 ' + targets.length + ' 个平台', 'success');
-  setTimeout(() => { launchAllBtn.textContent = '⚡ 一键打开全部平台'; launchAllBtn.disabled = false; }, 10 * 60 * 1000);
+
+  const urls = targets.map(p => p.url);
+  chrome.windows.create({ url: urls, focused: true, type: 'normal' }, () => {
+    launchAllBtn.textContent = '✅ 已全部打开';
+    toast('已打开 ' + targets.length + ' 个平台', 'success');
+    setTimeout(() => updateLaunchBtn(), 10 * 60 * 1000);
+  });
 }
 
 // ============ 初始化 ============
@@ -279,6 +329,7 @@ async function init() {
 
   const hasKey = await loadTotpKey();
   if (hasKey) {
+    await loadHidden();
     await loadData();
   } else {
     platformsEl.innerHTML = '<div style="text-align:center;color:#475569;padding:20px;font-size:13px">请先配置 API 密钥</div>';

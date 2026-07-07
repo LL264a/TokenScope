@@ -19,7 +19,11 @@ COOKIE_DOMAINS = {
     'tencent': ['.cloud.tencent.com', '.tencent.com'],
     'volcano': ['.volcengine.com'],
     'xiaomi': ['.xiaomimimo.com'],
+    'deepseek': ['.deepseek.com'],
 }
+
+# DeepSeek: 需要从 localStorage 提取 userToken
+DEEPSEEK_LS_KEYS = ['userToken']
 
 
 async def fetch_cookies(platforms=None):
@@ -33,7 +37,7 @@ async def fetch_cookies(platforms=None):
         platforms = list(COOKIE_DOMAINS.keys())
 
     async with async_playwright() as p:
-        browser = await p.chromium.connect_over_cdp("http://localhost:9222")
+        browser = await p.chromium.connect_over_cdp("http://localhost:9223")
         context = browser.contexts[0]
 
         # 获取所有 Cookie
@@ -76,11 +80,53 @@ async def fetch_cookies(platforms=None):
                 cred_data.update({"uin": uin, "ownerUin": ownerUin, "csrfCode": csrfCode})
                 print(f"  uin={uin}, ownerUin={ownerUin}")
 
+            elif platform == 'volcano':
+                # 提取 csrfToken（Coding Plan API 需要 X-CSRF-Token header）
+                csrf_token = ''
+                for c in platform_cookies:
+                    if c['name'] == 'csrfToken':
+                        csrf_token = c['value']
+                if csrf_token:
+                    cred_data["csrfToken"] = csrf_token
+                    print(f"  csrfToken={csrf_token}")
+                else:
+                    print(f"  ⚠️ 未找到csrfToken，Coding Plan查询可能失败")
+
             # 保存到数据库
             cred_json = json.dumps(cred_data, ensure_ascii=False)
             note = f"CDP自动获取 cookie_len={len(cookie_str)}"
             save_credential(platform, 'cookie', cred_json, note)
             print(f"  已保存到数据库")
+
+        # DeepSeek: 额外提取 localStorage 中的 userToken
+        if 'deepseek' in platforms:
+            try:
+                pages = context.pages
+                ds_page = None
+                # 查找已打开的 DeepSeek 页面，或新开一个
+                for page in pages:
+                    if 'deepseek.com' in page.url:
+                        ds_page = page
+                        break
+
+                if not ds_page:
+                    # 没有已打开的页面，新开标签
+                    ds_page = await context.new_page()
+                    await ds_page.goto('https://platform.deepseek.com/usage', wait_until='domcontentloaded', timeout=15000)
+                    await ds_page.wait_for_timeout(3000)
+
+                # 提取 localStorage
+                user_token = await ds_page.evaluate("() => localStorage.getItem('userToken')")
+                if user_token:
+                    cred_data = {"token": user_token}
+                    cred_json = json.dumps(cred_data, ensure_ascii=False)
+                    save_credential('deepseek', 'token', cred_json, f"CDP自动获取 userToken len={len(user_token)}")
+                    print(f"\ndeepseek: userToken已提取并保存 (len={len(user_token)})")
+                else:
+                    print(f"\ndeepseek: localStorage中未找到userToken（可能未登录）")
+
+            except Exception as e:
+                print(f"\ndeepseek: 提取userToken失败: {e}")
 
         await browser.close()
 
@@ -89,7 +135,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('platforms', nargs='*', default=None,
-                       help='要获取Cookie的平台(空=全部): tencent volcano xiaomi')
+                       help='要获取Cookie的平台(空=全部): tencent volcano xiaomi deepseek')
     args = parser.parse_args()
 
     asyncio.run(fetch_cookies(args.platforms or None))

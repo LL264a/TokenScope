@@ -1,17 +1,20 @@
 {
   "manifest_version": 3,
   "name": "TokenScope Cookie 采集器",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "description": "一键采集各平台 Cookie 并推送到 TokenScope 监控面板",
   "permissions": [
     "cookies",
-    "storage"
+    "storage",
+    "tabs"
   ],
   "host_permissions": [
     "*://*.cloud.tencent.com/*",
+    "*://*.tencent.com/*",
     "*://*.volcengine.com/*",
     "*://*.xiaomimimo.com/*",
     "*://*.deepseek.com/*",
+    "*://*.minnimax.chat/*",
     "https://ait.ll264a.cn/*"
   ],
   "action": {
@@ -26,12 +29,21 @@
   "content_scripts": [
     {
       "matches": [
+        "*://console.cloud.tencent.com/*",
         "*://cloud.tencent.com/*",
         "*://console.volcengine.com/*",
         "*://platform.xiaomimimo.com/*",
-        "*://platform.deepseek.com/*"
+        "*://platform.deepseek.com/*",
+        "*://minnimax.chat/*"
       ],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js"],
+      "matches": ["<all_urls>"]
     }
   ],
   "icons": {

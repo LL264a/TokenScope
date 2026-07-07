@@ -44,11 +44,10 @@ if (strpos($uri, '/api/') === 0) {
             ["id"=>"tencent","name"=>"腾讯云","url"=>"https://console.cloud.tencent.com/tokenhub/codingplan","domains"=>[".cloud.tencent.com",".tencent.com"]],
             ["id"=>"volcano","name"=>"火山引擎","url"=>"https://console.volcengine.com/ark/region:ark+cn-beijing/plan","domains"=>[".volcengine.com"]],
             ["id"=>"xiaomi","name"=>"小米 MIMO","url"=>"https://platform.xiaomimimo.com/console/plan-manage","domains"=>[".xiaomimimo.com"]],
+            ["id"=>"minimax","name"=>"MiniMax","url"=>"https://minnimax.chat/usage","domains"=>[".minnimax.chat"]],
         ];
-        $db = tm_get_db();
-        $rows = $db->query("SELECT DISTINCT platform FROM credentials")->fetchAll(PDO::FETCH_COLUMN);
-        $result = array_values(array_filter($all, fn($p) => in_array($p['id'], $rows)));
-        echo json_encode($result);
+        // 返回全部平台，不限制必须有凭证（用于一键打开）
+        echo json_encode($all, JSON_UNESCAPED_UNICODE);
         exit;
     }
 

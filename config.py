@@ -3,7 +3,7 @@
 from pathlib import Path
 
 # ============ 版本 ============
-APP_VERSION = 'v1.9.3'
+APP_VERSION = 'v1.9.4'
 
 # ============ 路径 ============
 PROJECT_DIR = Path(__file__).parent
@@ -51,7 +51,7 @@ PLATFORMS = {
         "services": [
             {
                 "key": "volcano_codingplan",
-                "name": "Coding Plan",
+                "name": "Coding Plan + Agent Plan",
                 "url": "https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?advancedActiveKey=subscribe",
                 "plan_type": "codingplan",
             },

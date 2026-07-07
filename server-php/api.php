@@ -145,26 +145,36 @@ if ($path === '/api/admin/credentials' && $method === 'POST') {
 // GET /api/admin/credentials/{platform}
 if (preg_match('#^/api/admin/credentials/([a-z_]+)$#', $path, $m) && $method === 'GET') {
     tm_require_auth();
-    $cred = tm_get_credential($m[1]);
+    $cred_type = $input['credential_type'] ?? $query['type'] ?? null;
+    $cred = tm_get_credential($m[1], $cred_type);
     if (!$cred) tm_json_error('凭证不存在', 404);
     $data = $cred['credential_data'] ?? '';
     $masked = strlen($data) > 20 ? substr($data, 0, 8) . '...' . substr($data, -4)
         : (strlen($data) > 4 ? substr($data, 0, 4) . '...' : '***');
-    tm_json_response([
+    $result = [
         'platform' => $cred['platform'],
         'credential_type' => $cred['credential_type'],
         'credential_data_masked' => $masked,
         'note' => $cred['note'] ?? '',
-        'updated_at' => $cred['updated_at'] ? date('Y-m-d H:i:s', $cred['updated_at']) : '',
-    ]);
+        'updated_at' => $cred['updated_at'] ? date('Y-m-d H:i:s', (int)$cred['updated_at']) : '',
+    ];
+    // 指定 credential_type 时，返回完整原始数据（用于服务器端自动采集）
+    if ($cred_type) {
+        $result['credential_data_raw'] = $data;
+    }
+    tm_json_response($result);
 }
 
 // DELETE /api/admin/credentials/{platform}
 if (preg_match('#^/api/admin/credentials/([a-z_]+)$#', $path, $m) && $method === 'DELETE') {
     tm_require_auth();
     $platform = $m[1];
-    if (tm_delete_credential($platform)) {
-        tm_json_response(['status' => 'ok', 'message' => "已删除 {$platform} 的凭证"]);
+    $cred_type = $input['credential_type'] ?? null;
+    // 如果不指定类型，默认只删 cookie（保护 api_data 不被误删）
+    if (!$cred_type) $cred_type = 'cookie';
+    if (tm_delete_credential($platform, $cred_type)) {
+        $msg = "已删除 {$platform} 的 {$cred_type} 凭证";
+        tm_json_response(['status' => 'ok', 'message' => $msg]);
     }
     tm_json_error('凭证不存在');
 }
@@ -202,8 +212,13 @@ if (preg_match('#^/api/admin/check-credential/([a-z_]+)$#', $path, $m) && $metho
 
 if ($path === '/api/admin/refresh-log' && $method === 'GET') {
     tm_require_auth();
-    $limit = intval($query['limit'] ?? 30);
-    tm_json_response(tm_get_refresh_log($limit));
+    $limit = min(100, intval($query['limit'] ?? 50));
+    $level = $query['level'] ?? null;
+    $platform = $query['platform'] ?? null;
+    $offset = intval($query['offset'] ?? 0);
+    $search = $query['search'] ?? null;
+    $logs = tm_get_refresh_log($limit, $level, $platform, $offset, $search);
+    tm_json_response($logs);
 }
 
 if ($path === '/api/admin/refresh-log' && $method === 'DELETE') {
@@ -375,24 +390,20 @@ function tm_api_stats() {
     // 排序
     $sort_mode = tm_get_setting('sort_mode', 'weight');
     if ($sort_mode === 'realtime') {
-        // 实时排序：活跃平台靠前（有数据 > 无数据），同批时间戳用 usage 量做活跃度排序
+        // 活跃平台靠前（有数据 > 无数据），按最近更新时间降序
         usort($all_platforms, function($a, $b) {
             $aNo = !empty($a['no_data']);
             $bNo = !empty($b['no_data']);
             if ($aNo !== $bNo) return $aNo ? 1 : -1;
-            // 有数据的平台，按 last_updated 降序
-            $at = $a['last_updated'] ?? '';
-            $bt = $b['last_updated'] ?? '';
-            if ($at !== $bt) {
-                if ($at === '') return 1;
-                if ($bt === '') return -1;
-                return ($at < $bt) ? 1 : -1;
+            $at = strtotime($a['last_updated'] ?? '');
+            $bt = strtotime($b['last_updated'] ?? '');
+            if ($at === false) $at = 0;
+            if ($bt === false) $bt = 0;
+            // 时间戳差 > 2秒才区分（同批次采集2秒内视为同时）
+            if (abs($at - $bt) > 2) {
+                return ($at > $bt) ? -1 : 1;
             }
-            // 时间戳相同（批量刷新），按 usage 总量降序
-            $aUsage = ($a['total_tokens'] ?? 0) + ($a['cost'] ?? 0);
-            $bUsage = ($b['total_tokens'] ?? 0) + ($b['cost'] ?? 0);
-            if ($aUsage !== $bUsage) return ($aUsage > $bUsage) ? -1 : 1;
-            // 仍然一样，按名字排序保证稳定
+            // 同批次按名字稳定排序
             return strcmp($a['platform'] ?? '', $b['platform'] ?? '');
         });
     } else {

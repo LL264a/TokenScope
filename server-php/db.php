@@ -46,21 +46,31 @@ function tm_init_tables() {
             platform TEXT,
             status TEXT,
             message TEXT,
-            duration_ms INTEGER DEFAULT 0
+            duration_ms INTEGER DEFAULT 0,
+            level TEXT DEFAULT 'info'
         );
         CREATE TABLE IF NOT EXISTS refresh_settings (
             key TEXT PRIMARY KEY,
             value TEXT
         );
     ");
+    // 自动迁移：旧表可能缺少 level 列
+    try {
+        $db->exec("ALTER TABLE refresh_log ADD COLUMN level TEXT DEFAULT 'info'");
+    } catch (PDOException $e) {
+        // 列已存在，忽略
+    }
 }
 
 // ============ 平台用量 ============
 
 function tm_save_usage(string $platform, int $total_tokens=0, int $input_tokens=0, int $output_tokens=0,
-                       float $cost=0.0, string $remaining='', array $raw=[], ?int $ts=null) {
+                       float $cost=0.0, string $remaining='', array $raw=[], $ts=null) {
+    // 跳过隐藏平台（不在前端显示的也不写入DB）
+    $hidden = tm_get_hidden_services();
+    if (in_array($platform, $hidden)) return;
     $db = tm_get_db();
-    $ts = $ts ?? time();
+    $ts = $ts ? intval($ts) : time();
     try {
         $stmt = $db->prepare("INSERT INTO platform_usage (timestamp, platform, total_tokens, input_tokens, output_tokens, cost, remaining, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([$ts, $platform, $total_tokens, $input_tokens, $output_tokens, $cost, $remaining, json_encode($raw, JSON_UNESCAPED_UNICODE)]);
@@ -83,11 +93,13 @@ function tm_get_latest_usage(): array {
         'remaining_pct','balance_available','balance_cash','balance_credit','balance_frozen','balance_arrears',
         'balance','gift_balance','cash_balance','frozen_balance','cache_tokens','tpm','rpm','current_month_cost',
         'month_used','month_limit','month_pct','plan_pct','comp_total','comp_used','comp_pct','auto_renew','plan_name',
-        'cost_total','monthly_cost','model_usages','granted_balance','topped_up_balance','daily_counts'];
+        'cost_total','monthly_cost','model_usages','granted_balance','topped_up_balance','daily_counts',
+        'afp_quotas','afp_cost','afp_plan_type','afp_remaining_days','afp_valid_to','unit',
+        'account_name','remaining_credits','total_requests'];
 
     foreach ($rows as $row) {
         $item = $row;
-        $item['last_updated'] = date('Y-m-d\TH:i:s', $row['timestamp']);
+        $item['last_updated'] = date('Y-m-d\TH:i:s', (int)$row['timestamp']);
         try {
             $raw = json_decode($row['raw_json'], true) ?: [];
             foreach ($extra_keys as $key) {
@@ -159,7 +171,7 @@ function tm_list_credentials(): array {
     $db = tm_get_db();
     $rows = $db->query("SELECT platform, credential_type, note, updated_at FROM credentials ORDER BY platform")->fetchAll();
     foreach ($rows as &$r) {
-        if ($r['updated_at']) $r['updated_at'] = date('Y-m-d H:i:s', $r['updated_at']);
+        if ($r['updated_at']) $r['updated_at'] = date('Y-m-d H:i:s', (int)$r['updated_at']);
     }
     unset($r);
     return $rows;
@@ -167,23 +179,14 @@ function tm_list_credentials(): array {
 
 function tm_delete_credential(string $platform, ?string $cred_type=null): bool {
     $db = tm_get_db();
-    if ($cred_type) {
-        $stmt = $db->prepare("DELETE FROM credentials WHERE platform = ? AND credential_type = ?");
-        $stmt->execute([$platform, $cred_type]);
-    } else {
-        $stmt = $db->prepare("DELETE FROM credentials WHERE platform = ?");
-        $stmt->execute([$platform]);
+    if (!$cred_type) {
+        // 安全：不指定类型时只返回 false，防止误删所有类型（如 api_data）
+        error_log("tm_delete_credential: cred_type is null for $platform, denied");
+        return false;
     }
-    // 同时清理该平台及子平台的 usage 数据和刷新日志
-    $sub_map = [
-        'tencent' => ['tencent_codingplan', 'tencent_hy_tokenplan', 'tencent_tokenplan'],
-        'volcano' => ['volcano_codingplan'],
-    ];
-    $all = array_merge([$platform], $sub_map[$platform] ?? []);
-    foreach ($all as $p) {
-        $db->prepare("DELETE FROM platform_usage WHERE platform = ?")->execute([$p]);
-        $db->prepare("DELETE FROM refresh_log WHERE platform = ?")->execute([$p]);
-    }
+    $stmt = $db->prepare("DELETE FROM credentials WHERE platform = ? AND credential_type = ?");
+    $stmt->execute([$platform, $cred_type]);
+    // 不级联删除 usage 数据（防止误操作丢失历史快照）
     return $stmt->rowCount() > 0;
 }
 
@@ -191,18 +194,32 @@ function tm_delete_credential(string $platform, ?string $cred_type=null): bool {
 
 function tm_add_refresh_log(string $platform, string $status, string $message, int $duration_ms=0) {
     $db = tm_get_db();
-    $stmt = $db->prepare("INSERT INTO refresh_log (timestamp, platform, status, message, duration_ms) VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([time(), $platform, $status, $message, $duration_ms]);
-    $db->exec("DELETE FROM refresh_log WHERE id NOT IN (SELECT id FROM refresh_log ORDER BY id DESC LIMIT 50)");
+    $level = match($status) {
+        'success' => 'INFO',
+        'failed' => 'WARN',
+        'error' => 'ERROR',
+        default => 'INFO',
+    };
+    $stmt = $db->prepare("INSERT INTO refresh_log (timestamp, platform, status, message, duration_ms, level) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->execute([time(), $platform, $status, $message, $duration_ms, $level]);
+    $db->exec("DELETE FROM refresh_log WHERE id NOT IN (SELECT id FROM refresh_log ORDER BY id DESC LIMIT 1000)");
 }
 
-function tm_get_refresh_log(int $limit=30): array {
+function tm_get_refresh_log(int $limit=50, ?string $level=null, ?string $platform=null, int $offset=0, ?string $search=null): array {
     $db = tm_get_db();
-    $stmt = $db->prepare("SELECT * FROM refresh_log ORDER BY id DESC LIMIT ?");
-    $stmt->execute([$limit]);
+    $sql = "SELECT * FROM refresh_log WHERE 1=1";
+    $params = [];
+    if ($level) { $sql .= " AND level=?"; $params[] = $level; }
+    if ($platform) { $sql .= " AND platform=?"; $params[] = $platform; }
+    if ($search) { $sql .= " AND message LIKE ?"; $params[] = "%{$search}%"; }
+    $sql .= " ORDER BY id DESC LIMIT ? OFFSET ?";
+    $params[] = $limit;
+    $params[] = $offset;
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
     $rows = $stmt->fetchAll();
     foreach ($rows as &$r) {
-        if ($r['timestamp']) $r['timestamp_fmt'] = date('Y-m-d H:i:s', $r['timestamp']);
+        if ($r['timestamp']) $r['timestamp_fmt'] = date('Y-m-d H:i:s', (int)$r['timestamp']);
     }
     unset($r);
     return $rows;
@@ -266,6 +283,25 @@ function tm_show_service(string $sub_platform) {
     }
 }
 
+// ============ api_data 保鲜检查 ============
+
+function tm_check_api_data_age(string $platform): array {
+    $cred = tm_get_credential($platform, 'api_data');
+    if (!$cred || empty($cred['updated_at'])) {
+        return ['status' => 'missing', 'message' => '无 api_data 数据', 'hours' => null];
+    }
+    $updated = floatval($cred['updated_at']);
+    $now = time();
+    $hours = ($now - $updated) / 3600;
+    if ($hours > 24) {
+        return ['status' => 'critical', 'message' => sprintf('api_data 已过期 %.1f 小时（超过24h）', $hours), 'hours' => $hours];
+    }
+    if ($hours > 12) {
+        return ['status' => 'stale', 'message' => sprintf('api_data 已过期 %.1f 小时（超过12h）', $hours), 'hours' => $hours];
+    }
+    return ['status' => 'fresh', 'message' => sprintf('api_data 新鲜（%.1f 小时）', $hours), 'hours' => $hours];
+}
+
 // ============ 管理员密码 ============
 
 function tm_has_password(): bool {
@@ -315,8 +351,8 @@ function tm_list_api_keys(): array {
     tm_init_api_keys_table();
     $rows = $db->query("SELECT id, name, last_used, created_at, revoked FROM api_keys ORDER BY id")->fetchAll();
     foreach ($rows as &$r) {
-        if ($r["last_used"]) $r["last_used_fmt"] = date("Y-m-d H:i:s", $r["last_used"]);
-        $r["created_at_fmt"] = date("Y-m-d H:i:s", $r["created_at"]);
+        if ($r["last_used"]) $r["last_used_fmt"] = date("Y-m-d H:i:s", (int)$r["last_used"]);
+        $r["created_at_fmt"] = date("Y-m-d H:i:s", (int)$r["created_at"]);
     }
     return $rows;
 }
@@ -351,7 +387,9 @@ function tm_verify_totp(string $secret, string $totp_str): bool {
     $window = intdiv(time(), 30);
     for ($offset = -1; $offset <= 1; $offset++) {
         $counter = $window + $offset;
-        $packed = pack("J", $counter);
+        $high = ($counter >> 32) & 0xFFFFFFFF;
+        $low = $counter & 0xFFFFFFFF;
+        $packed = pack("NN", $high, $low);  // big-endian 64bit per RFC 6238
         $hmac = hash_hmac("sha1", $packed, $bytes, true);
         $offset4 = ord($hmac[19]) & 0xf;
         $code = ((ord($hmac[$offset4]) & 0x7f) << 24)
@@ -368,11 +406,11 @@ function tm_verify_totp(string $secret, string $totp_str): bool {
 function tm_verify_api_totp(): ?string {
     $key_name = $_SERVER["HTTP_X_TOTP_KEY"] ?? "";
     $totp_code = $_SERVER["HTTP_X_TOTP_CODE"] ?? "";
-    if (!$key_name || !$totp_code) return null;
+    if ($key_name === "" || $totp_code === "") return null;
 
     $db = tm_get_db();
     tm_init_api_keys_table();
-    $stmt = $db->prepare("SELECT id, secret, last_totp, revoked FROM api_keys WHERE name=?");
+    $stmt = $db->prepare("SELECT id, secret, last_totp, revoked FROM api_keys WHERE name=? AND revoked=0 ORDER BY id DESC LIMIT 1");
     $stmt->execute([$key_name]);
     $row = $stmt->fetch();
     if (!$row || $row["revoked"]) return null;
