@@ -455,19 +455,23 @@ function tm_api_cookie_status() {
 
     $platform_status = [];
     foreach ($grouped as $p => $items) {
-        $status = ['platform' => $p, 'healthy' => true, 'last_check' => null, 'message' => ''];
+        $status = ['platform' => $p, 'healthy' => true, 'last_check' => null, 'message' => '', 'cookie_expired' => false];
+        // 找出最新一条记录（用于判定健康状态），其余仅作历史上下文
+        $newestRow = null;
         foreach ($items as $row) {
             $ts = $row['timestamp'];
             if ($status['last_check'] === null || $ts > $status['last_check']) {
                 $status['last_check'] = $ts;
                 $status['last_check_fmt'] = date('Y-m-d H:i:s', $ts);
+                $newestRow = $row;
             }
-            if ($row['status'] !== 'success') {
-                $status['healthy'] = false;
-                $msg = $row['message'] ?? '';
-                $status['message'] = str_replace('🍪 ', '', $msg);
-                $status['cookie_expired'] = strpos($msg, '🍪') !== false || stripos($msg, 'Cookie') !== false || stripos($msg, '失效') !== false;
-            }
+        }
+        // 仅以"最新一条"是否成功作为健康判定依据，避免 cookie 更新成功后仍标记为失效
+        if ($newestRow && $newestRow['status'] !== 'success') {
+            $status['healthy'] = false;
+            $msg = $newestRow['message'] ?? '';
+            $status['message'] = str_replace('🍪 ', '', $msg);
+            $status['cookie_expired'] = strpos($msg, '🍪') !== false || stripos($msg, 'Cookie') !== false || stripos($msg, '失效') !== false;
         }
         $platform_status[$p] = $status;
     }

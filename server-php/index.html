@@ -1128,7 +1128,8 @@ async function load() {
         // 数据哈希对比：数据没变不重渲染，避免排序跳动
         const newHash = JSON.stringify(stats.platforms.map(p => ({
             p: p.platform, lu: p.last_updated, nt: p.total_tokens, b: p.balance,
-            c: p.monthly_cost, nu: (p.model_usages||[]).map(m => m.model + m.response)
+            c: p.monthly_cost, nu: (p.model_usages||[]).map(m => m.model + m.response),
+            le: p.last_error, e: p.error, ce: p.cookie_expired
         })));
         if (newHash !== lastDataHash) {
             lastDataHash = newHash;

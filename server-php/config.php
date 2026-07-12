@@ -3,6 +3,9 @@
  * Token Monitor v1.9.4 - 配置文件
  */
 
+// ============ 时区（统一显示用，避免依赖服务器默认时区） ============
+date_default_timezone_set('Asia/Shanghai');
+
 // ============ 版本 ============
 define('APP_VERSION', 'v1.9.4');
 

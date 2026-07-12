@@ -205,18 +205,31 @@ function tm_add_refresh_log(string $platform, string $status, string $message, i
     $db->exec("DELETE FROM refresh_log WHERE id NOT IN (SELECT id FROM refresh_log ORDER BY id DESC LIMIT 1000)");
 }
 
-// 取某平台最近一次采集失败的错误信息（用于前端失败卡展示真实原因）
+// 取某平台"当前仍然有效"的采集失败错误信息（用于前端失败卡展示真实原因）
+// 关键：仅当最近一次失败的时间晚于最近一次成功时，该错误才算"当前有效"。
+// 否则（失败后已成功采集）返回 null，避免 cookie 更新成功后仍残留"已失效"提示。
 // volcano/tencent 的错误记录在子服务 key 下（如 volcano_codingplan），需一并匹配；
 // 其余平台（含 minimax 与兄弟平台 minimax_gateway）仅精确匹配，避免误报
 function tm_get_last_error(string $platform): ?array {
     $db = tm_get_db();
     $subParents = ['volcano', 'tencent'];
     if (in_array($platform, $subParents, true)) {
-        $stmt = $db->prepare("SELECT message, timestamp FROM refresh_log WHERE (platform = ? OR platform LIKE ?) AND status = 'failed' ORDER BY id DESC LIMIT 1");
-        $stmt->execute([$platform, $platform . '_%']);
+        $pattern = $platform . '_%';
+        $stmt = $db->prepare(
+            "SELECT message, timestamp FROM refresh_log
+             WHERE (platform = ? OR platform LIKE ?) AND status = 'failed'
+               AND timestamp > (SELECT COALESCE(MAX(timestamp), 0) FROM refresh_log WHERE (platform = ? OR platform LIKE ?) AND status = 'success')
+             ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([$platform, $pattern, $platform, $pattern]);
     } else {
-        $stmt = $db->prepare("SELECT message, timestamp FROM refresh_log WHERE platform = ? AND status = 'failed' ORDER BY id DESC LIMIT 1");
-        $stmt->execute([$platform]);
+        $stmt = $db->prepare(
+            "SELECT message, timestamp FROM refresh_log
+             WHERE platform = ? AND status = 'failed'
+               AND timestamp > (SELECT COALESCE(MAX(timestamp), 0) FROM refresh_log WHERE platform = ? AND status = 'success')
+             ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([$platform, $platform]);
     }
     $row = $stmt->fetch();
     if (!$row) return null;
