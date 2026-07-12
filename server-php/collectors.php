@@ -824,32 +824,40 @@ function tm_collect_xiaomi(string $cookie_str): array {
         'cost' => 0, 'remaining' => '-',
     ];
 
-    // 1. Token Plan 详情
+    // 1. Token Plan 详情（鉴权接口，失败即视为 Cookie 失效 → 返回错误，不覆盖历史好数据）
     $plan = tm_xiaomi_api_get('https://platform.xiaomimimo.com/api/v1/tokenPlan/detail', $headers);
-    if ($plan) {
-        $d = $plan['data'] ?? [];
-        $result['plan_type'] = $d['planName'] ?? '';
-        $result['plan_code'] = $d['planCode'] ?? '';
-        $result['auto_renew'] = $d['enableAutoRenew'] ?? false;
-        $end_str = $d['currentPeriodEnd'] ?? '';
-        if ($end_str) {
-            $result['valid_to'] = substr($end_str, 0, 10);
-            $end_ts = strtotime(substr($end_str, 0, 19));
-            if ($end_ts) {
-                $remaining_days = intval(($end_ts - time()) / 86400);
-                if ($remaining_days > 0) $result['remaining_days'] = $remaining_days;
-            }
-        }
-        $plan_prices = ['lite' => 39, 'pro' => 199];
-        $plan_code = $d['planCode'] ?? '';
-        if (isset($plan_prices[$plan_code])) $result['cost'] = $plan_prices[$plan_code];
-    } elseif (($plan['_expired'] ?? false)) {
+    if ($plan === null) {
+        return [tm_error_item('xiaomi', 'Token Plan 详情接口网络请求失败，Cookie可能已失效')];
+    }
+    if (isset($plan['_expired'])) {
         return [tm_error_item('xiaomi', 'Cookie已失效，请重新登录小米平台', true)];
     }
+    if (isset($plan['_fail'])) {
+        return [tm_error_item('xiaomi', 'Token Plan 详情接口失败（' . $plan['_fail'] . '），Cookie可能已失效')];
+    }
+    // $plan 为真实数据数组
+    $d = $plan['data'] ?? [];
+    $result['plan_type'] = $d['planName'] ?? '';
+    $result['plan_code'] = $d['planCode'] ?? '';
+    $result['auto_renew'] = $d['enableAutoRenew'] ?? false;
+    $end_str = $d['currentPeriodEnd'] ?? '';
+    if ($end_str) {
+        $result['valid_to'] = substr($end_str, 0, 10);
+        $end_ts = strtotime(substr($end_str, 0, 19));
+        if ($end_ts) {
+            $remaining_days = intval(($end_ts - time()) / 86400);
+            if ($remaining_days > 0) $result['remaining_days'] = $remaining_days;
+        }
+    }
+    $plan_prices = ['lite' => 39, 'pro' => 199];
+    $plan_code = $d['planCode'] ?? '';
+    if (isset($plan_prices[$plan_code])) $result['cost'] = $plan_prices[$plan_code];
+
+    $usage_failed = false;
 
     // 2. Token Plan 用量
     $usage = tm_xiaomi_api_get('https://platform.xiaomimimo.com/api/v1/tokenPlan/usage', $headers);
-    if ($usage) {
+    if ($usage && !isset($usage['_expired']) && !isset($usage['_fail'])) {
         $d = $usage['data'] ?? [];
         // 月度用量
         $month_items = $d['monthUsage']['items'] ?? [];
@@ -878,11 +886,13 @@ function tm_collect_xiaomi(string $cookie_str): array {
         if (isset($result['remaining_pct'])) {
             $result['remaining'] = number_format($result['remaining_pct'], 1) . '%';
         }
+    } else {
+        $usage_failed = true;
     }
 
     // 3. 通用用量（速率限制）
     $gen_usage = tm_xiaomi_api_get('https://platform.xiaomimimo.com/api/v1/usage', $headers);
-    if ($gen_usage) {
+    if ($gen_usage && !isset($gen_usage['_expired']) && !isset($gen_usage['_fail'])) {
         $d = $gen_usage['data'] ?? [];
         $result['tpm'] = $d['accountRateLimit']['tpm'] ?? 0;
         $result['rpm'] = $d['accountRateLimit']['rpm'] ?? 0;
@@ -895,7 +905,7 @@ function tm_collect_xiaomi(string $cookie_str): array {
 
     // 4. 余额
     $bal = tm_xiaomi_api_get('https://platform.xiaomimimo.com/api/v1/balance', $headers);
-    if ($bal) {
+    if ($bal && !isset($bal['_expired']) && !isset($bal['_fail'])) {
         $d = $bal['data'] ?? [];
         $result['balance'] = floatval($d['balance'] ?? 0);
         $result['gift_balance'] = floatval($d['giftBalance'] ?? 0);
@@ -903,17 +913,22 @@ function tm_collect_xiaomi(string $cookie_str): array {
         $result['frozen_balance'] = floatval($d['frozenBalance'] ?? 0);
     }
 
+    // 若用量接口失败且未取到任何 Token 数据，视为采集不完整 → 返回错误，避免用 0 覆盖历史好数据
+    if ($usage_failed && empty($result['total_tokens']) && !isset($result['remaining_pct'])) {
+        return [tm_error_item('xiaomi', 'Token Plan 用量接口失败，Cookie可能已失效', true)];
+    }
+
     return [$result];
 }
 
 function tm_xiaomi_api_get(string $url, array $headers): ?array {
-    // 返回 null=请求失败, array(expired)=401(Cookie过期), array=成功
+    // 返回: 真实数据数组(含 data/code) / ['_expired'=>true](401 Cookie过期) / ['_fail'=>原因](其他失败) / null(网络失败)
     $resp = tm_http_get($url, $headers);
     if (!$resp) return null;
     if ($resp['code'] === 401) return ['_expired' => true];
-    if ($resp['code'] !== 200) return null;
+    if ($resp['code'] !== 200) return ['_fail' => 'http_' . $resp['code']];
     $data = json_decode($resp['body'], true);
-    if (!is_array($data) || ($data['code'] ?? -1) !== 0) return null;
+    if (!is_array($data) || ($data['code'] ?? -1) !== 0) return ['_fail' => 'code_' . ($data['code'] ?? 'null')];
     return $data;
 }
 
@@ -1751,9 +1766,22 @@ function tm_collect_gpt_gateway(string $credential): array {
 
     // 1. 用户信息（余额）
     $resp = tm_http_get($base . '/api/v1/auth/me', $headers);
-    if (!$resp || $resp['code'] !== 200) {
-        $code = $resp ? $resp['code'] : 0;
-        return [tm_error_item('gpt_gateway', "查询失败 (HTTP $code)，Token可能已失效")];
+    $code = $resp ? $resp['code'] : 0;
+    // Token 失效（400/401）→ 若用户已提供 refresh_token，尝试自动续期（自愈看板）
+    if ($resp && ($code === 400 || $code === 401) && !empty($decoded['refresh_token'])) {
+        $rt = tm_gpt_try_refresh($base, $decoded['refresh_token']);
+        if ($rt) {
+            $new_token = $rt['token'];
+            $new_refresh = $rt['refresh_token'] ?? $decoded['refresh_token'];
+            tm_save_credential('gpt_gateway', 'token', json_encode(['token' => $new_token, 'refresh_token' => $new_refresh], JSON_UNESCAPED_UNICODE));
+            $token = $new_token;
+            $headers['Authorization'] = 'Bearer ' . $new_token;
+            $resp = tm_http_get($base . '/api/v1/auth/me', $headers);
+            $code = $resp ? $resp['code'] : 0;
+        }
+    }
+    if (!$resp || $code !== 200) {
+        return [tm_error_item('gpt_gateway', "Token 已过期（有效期约 24 小时）。请重新登录 GPT 中转站获取新的 auth_token，在 ⚙️管理 → 更新凭证 中粘贴。")];
     }
     $me = json_decode($resp['body'], true);
     if (!$me || ($me['code'] ?? -1) !== 0) {
@@ -1817,4 +1845,21 @@ function tm_collect_gpt_gateway(string $credential): array {
     $result['total_requests'] = $total_requests;
 
     return [$result];
+}
+
+// GPT 中转 Token 自动续期（仅当刷新端点可用且响应合法时返回新 token，否则返回 null 安全降级）
+function tm_gpt_try_refresh(string $base, string $refresh_token): ?array {
+    $resp = tm_http_post($base . '/api/v1/auth/refresh', [
+        'Content-Type' => 'application/json',
+        'Accept' => 'application/json',
+        'User-Agent' => 'Mozilla/5.0',
+    ], ['refresh_token' => $refresh_token]);
+    if (!$resp || $resp['code'] !== 200) return null;
+    $data = json_decode($resp['body'], true);
+    if (!is_array($data)) return null;
+    $d = $data['data'] ?? $data;
+    $token = $d['token'] ?? null;
+    // 严格校验：必须是非空字符串，避免把异常响应当成新 token 保存
+    if (!is_string($token) || strlen($token) < 10) return null;
+    return ['token' => $token, 'refresh_token' => $d['refresh_token'] ?? null];
 }

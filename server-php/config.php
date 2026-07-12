@@ -1,10 +1,10 @@
 <?php
 /**
- * Token Monitor v1.9.3 - 配置文件
+ * Token Monitor v1.9.4 - 配置文件
  */
 
 // ============ 版本 ============
-define('APP_VERSION', 'v1.9.3');
+define('APP_VERSION', 'v1.9.4');
 
 // ============ 路径 ============
 define('TM_ROOT', __DIR__);
@@ -72,7 +72,7 @@ define('TM_PLATFORMS', [
             ['key' => 'gpt_gateway', 'name' => 'API Gateway', 'plan_type' => 'gpt_gateway'],
         ],
         'credential_types' => ['token'],
-        'token_hint' => '粘贴 auth_token（登录中转站 → F12 → Application → Local Storage → auth_token → 复制 value）',
+        'token_hint' => '粘贴 auth_token（登录中转站 → F12 → Application → Local Storage → auth_token → 复制 value）。如需自动续期，可粘贴 JSON：{"token":"...","refresh_token":"..."}',
     ],
 ]);
 

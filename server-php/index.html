@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <title>Token 监控面板</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='10.5' y='1' width='3' height='14' rx='1.5' fill='%2360a5fa'/%3E%3Crect x='3.5' y='3.5' width='17' height='3' rx='1.5' fill='%23c084fc'/%3E%3Ccircle cx='12' cy='12' r='7' stroke='%234ade80' stroke-width='1.5' fill='none'/%3E%3Ctext x='12' y='15' text-anchor='middle' font-family='system-ui,sans-serif' font-size='9' font-weight='700' fill='%234ade80'%3ET%3C/text%3E%3C/svg%3E">
-    <script>/* 版本号 */ const APP_VERSION = 'v1.9.3';</script>
+    <script>/* 版本号 */ const APP_VERSION = 'v1.9.4';</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -291,6 +291,44 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+
+        /* ====== 无数据 / 需更新凭证 卡片 ====== */
+        .nodata-card { border: 1px dashed rgba(251,191,36,0.35); background: #0f172a; }
+        .nodata-body {
+            padding: 28px 24px 32px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        .nodata-icon { font-size: 34px; opacity: 0.9; }
+        .nodata-msg {
+            font-size: 14px;
+            color: #cbd5e1;
+            line-height: 1.6;
+            max-width: 480px;
+        }
+        .nodata-err-at {
+            font-size: 12px;
+            color: #94a3b8;
+            background: rgba(148,163,184,0.08);
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+        .nodata-btn { margin-top: 6px; }
+
+        /* ====== 数据过期提示条（有数据但近期采集失败） ====== */
+        .stale-banner {
+            background: linear-gradient(90deg, rgba(251,191,36,0.20), rgba(251,191,36,0.07));
+            color: #fcd34d;
+            font-size: 12.5px;
+            font-weight: 600;
+            padding: 9px 22px;
+            border-bottom: 1px solid rgba(251,191,36,0.28);
+            letter-spacing: 0.2px;
+            line-height: 1.4;
         }
 
         /* ====== MiniMax 气泡卡片 ====== */
@@ -1134,7 +1172,20 @@ function renderCookieAlert(statusList) {
 function renderNoDataCard(p) {
     const name = NAMES[p.platform] || p.platform;
     const ico = brandIcon(p.platform, 20) || '📊';
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="' + p.platform + '">' + ico + ' ' + escHtml(name) + '</div><div class="subtitle">凭证已保存</div></div><span class="status-badge badge-warning">无数据</span></div><div style="padding:32px;text-align:center;color:#64748b"><div style="font-size:16px;margin-bottom:8px">⏳ 等待数据采集</div><div style="font-size:13px;color:#4b5563">凭证已保存，但尚未成功采集到数据。<br>可能是 Cookie 已失效，请在管理页更新凭证后刷新。</div></div><div class="card-footer"><span>' + escHtml(name) + '</span><span>-</span></div></div>';
+    const cfg = platformConfigs[p.platform];
+    const defType = (cfg && cfg.credential_types && cfg.credential_types[0]) ? cfg.credential_types[0] : 'cookie';
+    const errMsg = p.error ? p.error : '凭证已保存，但尚未成功采集到数据。';
+    const errAt = p.error_at ? ('<div class="nodata-err-at">最近失败：' + escHtml(p.error_at) + '</div>') : '';
+    return '<div class="plan-card nodata-card" style="flex:0 0 100%;min-width:0">' +
+        '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="' + p.platform + '">' + ico + ' ' + escHtml(name) + '</div><div class="subtitle">凭证已保存 · 采集未成功</div></div>' +
+        '<span class="status-badge badge-warning">需更新凭证</span></div>' +
+        '<div class="nodata-body">' +
+            '<div class="nodata-icon">🔑</div>' +
+            '<div class="nodata-msg">' + escHtml(errMsg) + '</div>' +
+            errAt +
+            '<button class="btn btn-primary nodata-btn" onclick="showUpdateCred(\'' + p.platform + '\',\'' + defType + '\')">✏️ 更新凭证并刷新</button>' +
+        '</div>' +
+        '<div class="card-footer"><span>' + escHtml(name) + '</span><span>—</span></div></div>';
 }
 
 function renderPlatforms(platforms) {
@@ -1164,15 +1215,23 @@ function renderPlatforms(platforms) {
         return;
     }
     el.innerHTML = platforms.map(p => {
-        if (p.no_data) return renderNoDataCard(p);
-        if (p.platform === 'tencent' && p.services) return renderTencentCard(p);
-        if (p.platform === 'volcano' && p.services) return renderVolcanoGroupCard(p);
-        if (p.platform === 'xiaomi') return renderXiaomiCard(p);
-        if (p.platform === 'minimax' || p.platform === 'minimax_gateway') return renderMiniMaxCard(p);
-        if (p.platform === 'gpt_gateway') return renderGptGatewayCard(p);
-        if (p.quotas) return renderCodingPlan(p);
-        if (p.remaining_pct !== undefined) return renderTokenPlan(p);
-        return renderFallback(p);
+        let card;
+        if (p.no_data) card = renderNoDataCard(p);
+        else if (p.platform === 'tencent' && p.services) card = renderTencentCard(p);
+        else if (p.platform === 'volcano' && p.services) card = renderVolcanoGroupCard(p);
+        else if (p.platform === 'xiaomi') card = renderXiaomiCard(p);
+        else if (p.platform === 'minimax' || p.platform === 'minimax_gateway') card = renderMiniMaxCard(p);
+        else if (p.platform === 'gpt_gateway') card = renderGptGatewayCard(p);
+        else if (p.quotas) card = renderCodingPlan(p);
+        else if (p.remaining_pct !== undefined) card = renderTokenPlan(p);
+        else card = renderFallback(p);
+        // 有数据但近期采集失败：在卡片顶部注入“数据可能过期”提示条
+        if (p.last_error) {
+            const banner = '<div class="stale-banner">⚠️ 数据可能过期 · ' + escHtml(p.last_error) +
+                (p.last_error_at ? ' · 最近失败 ' + escHtml(p.last_error_at) : '') + '</div>';
+            card = card.replace(/<div class="plan-card[^>]*>/, m => m + banner);
+        }
+        return card;
     }).join('');
 }
 

@@ -372,10 +372,11 @@ function tm_api_stats() {
     }
     unset($p);
 
-    // 有凭证但无数据的平台 → no_data 占位卡
+    // 有凭证但无数据的平台 → no_data 占位卡（附带真实错误原因）
     $creds = tm_list_credentials();
     foreach ($creds as $cred) {
         $platform = $cred['platform'];
+        $err = tm_get_last_error($platform);
         if (!isset($all_platforms[$platform])) {
             $all_platforms[$platform] = [
                 'platform' => $platform,
@@ -383,7 +384,15 @@ function tm_api_stats() {
                 'cost' => 0, 'remaining' => '',
                 'last_updated' => '', 'source' => 'console', 'calls' => 0,
                 'services' => [], 'no_data' => true,
+                'error' => $err ? $err['message'] : '',
+                'error_at' => $err ? $err['at'] : '',
             ];
+        } else {
+            // 已有数据但近期采集失败：附加上次错误，前端可提示“数据可能过期”
+            if ($err) {
+                $all_platforms[$platform]['last_error'] = $err['message'];
+                $all_platforms[$platform]['last_error_at'] = $err['at'];
+            }
         }
     }
 

@@ -205,6 +205,24 @@ function tm_add_refresh_log(string $platform, string $status, string $message, i
     $db->exec("DELETE FROM refresh_log WHERE id NOT IN (SELECT id FROM refresh_log ORDER BY id DESC LIMIT 1000)");
 }
 
+// 取某平台最近一次采集失败的错误信息（用于前端失败卡展示真实原因）
+// volcano/tencent 的错误记录在子服务 key 下（如 volcano_codingplan），需一并匹配；
+// 其余平台（含 minimax 与兄弟平台 minimax_gateway）仅精确匹配，避免误报
+function tm_get_last_error(string $platform): ?array {
+    $db = tm_get_db();
+    $subParents = ['volcano', 'tencent'];
+    if (in_array($platform, $subParents, true)) {
+        $stmt = $db->prepare("SELECT message, timestamp FROM refresh_log WHERE (platform = ? OR platform LIKE ?) AND status = 'failed' ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$platform, $platform . '_%']);
+    } else {
+        $stmt = $db->prepare("SELECT message, timestamp FROM refresh_log WHERE platform = ? AND status = 'failed' ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$platform]);
+    }
+    $row = $stmt->fetch();
+    if (!$row) return null;
+    return ['message' => $row['message'], 'at' => date('Y-m-d H:i', (int)$row['timestamp'])];
+}
+
 function tm_get_refresh_log(int $limit=50, ?string $level=null, ?string $platform=null, int $offset=0, ?string $search=null): array {
     $db = tm_get_db();
     $sql = "SELECT * FROM refresh_log WHERE 1=1";
