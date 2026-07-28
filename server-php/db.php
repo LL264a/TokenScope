@@ -112,6 +112,67 @@ function tm_get_latest_usage(): array {
     return $results;
 }
 
+// ============ 数据保留 / 清理 ============
+
+/** 当前库文件体积（含 -wal / -shm 附属文件），单位字节 */
+function tm_db_size_bytes(): int {
+    if (!file_exists(TM_DB_PATH)) return 0;
+    $s = filesize(TM_DB_PATH);
+    foreach (['-wal', '-shm'] as $suf) {
+        if (file_exists(TM_DB_PATH . $suf)) $s += filesize(TM_DB_PATH . $suf);
+    }
+    return $s;
+}
+
+/**
+ * 清理超过保留期的历史用量数据，并 VACUUM 回收空间。
+ * platform_usage 仅前端取最新一条，历史行全部冗余；refresh_log 保留 30 天用于排查。
+ * @param int|null $days 保留天数，null 时取 TM_DATA_RETENTION_DAYS
+ * @return array {retention_days, platform_usage_removed, refresh_log_removed, freed_mb, db_size_mb}
+ */
+function tm_prune_old_usage(?int $days = null): array {
+    $days = $days !== null ? max(1, intval($days)) : TM_DATA_RETENTION_DAYS;
+    $cutoff = time() - $days * 86400;
+    $db = tm_get_db();
+
+    $before = tm_db_size_bytes();
+
+    // 安全网：即使某平台数据已超保留期，也永远保留其最新一条快照，
+    // 避免采集中断(如凭证丢失/进程挂掉)超过保留期后看板被彻底清空。
+    $pu = $db->prepare(
+        "DELETE FROM platform_usage
+         WHERE timestamp < ?
+           AND (platform, timestamp) NOT IN (
+             SELECT platform, MAX(timestamp) FROM platform_usage GROUP BY platform
+           )"
+    );
+    $pu->execute([$cutoff]);
+    $removed_pu = $pu->rowCount();
+
+    $log_cutoff = time() - 30 * 86400; // refresh_log 保留更久，便于排查失败
+    $rl = $db->prepare("DELETE FROM refresh_log WHERE timestamp < ?");
+    $rl->execute([$log_cutoff]);
+    $removed_rl = $rl->rowCount();
+
+    // 回收空闲页（WAL 模式下 VACUUM 会重写库文件并释放磁盘空间）
+    try {
+        $db->exec('VACUUM');
+    } catch (PDOException $e) {
+        error_log('tm_prune_old_usage VACUUM: ' . $e->getMessage());
+    }
+
+    $after = tm_db_size_bytes();
+    $freed = max(0, $before - $after);
+
+    return [
+        'retention_days'           => $days,
+        'platform_usage_removed'   => $removed_pu,
+        'refresh_log_removed'      => $removed_rl,
+        'freed_mb'                 => round($freed / 1048576, 2),
+        'db_size_mb'               => round($after / 1048576, 2),
+    ];
+}
+
 // ============ 凭证 ============
 
 function tm_save_credential(string $platform, string $cred_type, string $data, string $note='') {

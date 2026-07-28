@@ -62,6 +62,15 @@ class SecurityHeadersMiddleware:
 async def lifespan(app_instance):
     """启动：初始化数据库 + 自动启动调度器"""
     init_tables()
+    # 启动时清理历史冗余数据，防止本地库无限制增长（与服务器 TM_DATA_RETENTION_DAYS 一致）
+    try:
+        import db
+        res = db.prune_old_usage()
+        if res["platform_usage_removed"] or res["freed_mb"]:
+            print(f"[DB] 启动清理历史数据: 删除 {res['platform_usage_removed']} 行, "
+                  f"释放 {res['freed_mb']} MB (库现 {res['db_size_mb']} MB)")
+    except Exception as e:
+        print(f"[DB] 启动清理失败(可忽略): {e}")
     scheduler.set_refresh_callback(_do_refresh_all)
     if get_setting("scheduler_auto_start", "0") == "1":
         scheduler.start()

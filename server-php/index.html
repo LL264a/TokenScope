@@ -814,6 +814,7 @@ window._refreshInterval = 30;
 /* ====== 认证状态 ====== */
 let authToken = localStorage.getItem('token') || '';
 let isLoggedIn = false;
+let currentSortMode = 'weight'; // 排序模式单一真相源：'weight' | 'realtime'，由 loadSortMode / toggleSortMode 写入（根因2 解耦）
 let hasPassword = false;
 
 /* 带认证的 fetch 封装 */
@@ -1055,6 +1056,8 @@ function switchAdminTab(tab) {
         if (t.getAttribute('onclick') === "switchAdminTab('" + tab + "')") t.classList.add('active');
     });
     document.getElementById('tab-' + tab).classList.add('active');
+    // 切换到排序 tab 时主动刷新列表（根因1：原仅打开管理页渲染一次，切子 tab 不刷新）
+    if (tab === 'sort') loadSortWeights();
 }
 
 /* ====== Toast ====== */
@@ -1192,8 +1195,8 @@ function renderNoDataCard(p) {
 function renderPlatforms(platforms) {
     // 权重模式：从 localStorage 读取拖动顺序覆盖后端排序
     const saved = JSON.parse(localStorage.getItem('platform_order') || '[]');
-    const sortModeToggle = document.getElementById('sort_mode-toggle');
-    const isWeight = sortModeToggle && !sortModeToggle.checked;
+    // 排序模式以全局变量 currentSortMode 为准（由 loadSortMode / toggleSortMode 维护），不再依赖管理页 DOM 元素状态（根因2）
+    const isWeight = currentSortMode !== 'realtime';
     if (isWeight && saved.length) {
         const savedSet = new Set(saved);
         // 先把有记录的平台按拖动顺序排
@@ -1828,13 +1831,26 @@ function onPlatformChange() {
 }
 
 async function loadSortWeights() {
+    const container = document.getElementById('sort-weight-list');
+    if (!container) return;
+    // 根因1：原实现单次请求失败即静默空白。改为最多重试 2 次，失败给出明确提示而非空白。
+    let credsResp = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+            credsResp = await authFetch('/api/admin/credentials').then(r => r.json());
+            break;
+        } catch (e) {
+            if (attempt >= 2) {
+                container.innerHTML = '<span style="font-size:12px;color:#f87171">排序列表加载失败，请刷新管理页重试</span>';
+                toast('排序列表加载失败', 'error');
+                return;
+            }
+            await new Promise(r => setTimeout(r, 1200));
+        }
+    }
+    if (!credsResp) return;
+
     try {
-        const [credsResp] = await Promise.all([
-            authFetch('/api/admin/credentials').then(r=>r.json())
-        ]);
-        const container = document.getElementById('sort-weight-list');
-        if (!container) return;
-        
         const activePlatforms = [...new Set(credsResp.map(c => c.platform))];
         // minimax 的 api_key 是中转站，在排序里显示为 minimax_gateway
         const expandedPlatforms = [];
@@ -1940,6 +1956,7 @@ async function loadSortMode() {
         const data = await resp.json();
         const toggle = document.getElementById('sort_mode-toggle');
         const label = document.getElementById('sort_mode-label');
+        currentSortMode = data.mode === 'realtime' ? 'realtime' : 'weight';
         if (toggle && label) {
             const isRealtime = data.mode === 'realtime';
             toggle.checked = isRealtime;
@@ -1962,6 +1979,7 @@ async function toggleSortMode() {
             const isRealtime = mode === 'realtime';
             label.textContent = isRealtime ? '实时' : '权重';
             label.className = isRealtime ? 'on' : 'off';
+            currentSortMode = mode; // 同步全局真相源，监控页立即按新模式重排
             toast(result.message, 'success');
             lastDataHash = '';
             load();
@@ -2402,6 +2420,8 @@ document.getElementById('version-tag').textContent = APP_VERSION;
 checkAuthStatus().then(() => {
     // 根据登录状态渲染监控页的隐藏按钮
     lastDataHash = ''; // 强制重新渲染
+    // 启动即拉取服务器 sort_mode，让监控页排序从一开始就与服务器一致，不依赖“是否打开过管理页”（根因2 闭环）
+    if (isLoggedIn) loadSortMode();
 });
 
 load();

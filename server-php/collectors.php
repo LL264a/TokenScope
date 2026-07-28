@@ -1241,6 +1241,47 @@ function tm_error_item(string $key, string $msg, bool $cookie_expired=false): ar
     return $item;
 }
 
+/**
+ * 把任意格式的 cookie 凭证归一化为标准 Cookie 请求头字符串。
+ * - Netscape 格式（# Netscape HTTP Cookie File / tab 分隔）→ 转成 name=value; name=value
+ * - 已是 name=value; ... 头部格式 → 原样返回
+ * - JSON 凭证（api_key / token 类，以 { 开头）→ 原样返回（非 cookie）
+ * 这样 Chrome 插件导出的 Netscape cookie 可直接粘贴使用。
+ */
+function tm_normalize_cookie(string $cookie): string {
+    $cookie = trim($cookie);
+    if ($cookie === '') return $cookie;
+    // JSON 凭证（api_key / token）原样透传
+    if (str_starts_with($cookie, '{')) return $cookie;
+    // 已是头部格式（无 tab、无 Netscape 注释）→ 直接返回
+    if (strpos($cookie, "\t") === false && stripos($cookie, '# Netscape') === false) {
+        return $cookie;
+    }
+    // ---- Netscape 格式转换 ----
+    $pairs = [];
+    foreach (explode("\n", $cookie) as $line) {
+        $line = trim($line);
+        if ($line === '') continue;
+        // 部分导出器把 HttpOnly cookie 的域名写成 #HttpOnly_.example.com（这不是注释）
+        if (str_starts_with($line, '#HttpOnly_')) {
+            $line = substr($line, strlen('#HttpOnly_'));
+        } elseif (str_starts_with($line, '#')) {
+            continue; // 真正的注释行（# Netscape ...）
+        }
+        if (strpos($line, "\t") !== false) {
+            $cols = explode("\t", $line);
+        } else {
+            $cols = preg_split('/\s+/', $line);
+        }
+        if (count($cols) < 7) continue;
+        $name = $cols[5];
+        $value = trim(implode(' ', array_slice($cols, 6))); // 值里可能含空格
+        if ($name === '') continue;
+        $pairs[] = $name . '=' . $value;
+    }
+    return implode('; ', $pairs);
+}
+
 // ============ 主刷新逻辑 ============
 
 function tm_do_refresh_all(): array {
@@ -1254,7 +1295,7 @@ function tm_do_refresh_all(): array {
         $cred_data = tm_get_merged_credential_data($platform);
         if (!$cred_data) continue;
 
-        $cookie_str = isset($cred_data['raw']) ? $cred_data['raw'] : json_encode($cred_data, JSON_UNESCAPED_UNICODE);
+        $cookie_str = tm_normalize_cookie(isset($cred_data['raw']) ? $cred_data['raw'] : json_encode($cred_data, JSON_UNESCAPED_UNICODE));
         $start = microtime(true);
 
         try {
@@ -1531,6 +1572,12 @@ function tm_parse_token_str(string $s): int {
 
 /* MiniMax 官方平台 Cookie 采集 */
 function tm_minimax_collect_official(string $cookie): array {
+    // 精确诊断：MiniMax 后端靠 HttpOnly 的 _sid/_token 鉴权。
+    // 若 cookie 里没有，说明导出方式漏掉了 HttpOnly 会话 cookie（常见：document.cookie / 只暴露 JS 可见 cookie 的插件）。
+    if (strpos($cookie, '_sid=') === false || strpos($cookie, '_token=') === false) {
+        return [tm_error_item('minimax', 'Cookie 缺少 _sid/_token（HttpOnly 会话 cookie）。请用 Chrome DevTools → Network 找一个登录态请求 → 右键 Copy as cURL → 取出 -b 的 cookie 字符串；或用能读取 HttpOnly 的插件导出。仅粘贴非 HttpOnly 的跟踪 cookie 会被后端拒绝(401)。')];
+    }
+
     $headers = [
         'Cookie' => $cookie,
         'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -1599,17 +1646,43 @@ function tm_minimax_collect_official(string $cookie): array {
     // remaining 摘要
     $result['remaining'] = '14天用量 ' . $total_consumed_str . ' tokens';
 
-    // 1.5 配额数据（5h/weekly）— 从 CDP 推送的 api_data 读取
-    $api_data_cred = tm_get_credential('minimax', 'api_data');
-    if ($api_data_cred) {
-        $cached = json_decode($api_data_cred['credential_data'], true);
-        if ($cached && isset($cached['quotas'])) {
-            // 检查新鲜度（超过2小时视为过期）
-            $age = time() - intval($cached['fetched_at'] ?? 0);
-            if ($age < 7200) {
-                $result['quotas'] = $cached['quotas'];
-                $q5h = $cached['quotas']['5h']['used_pct'] ?? 0;
-                $qw = $cached['quotas']['weekly']['used_pct'] ?? 0;
+    // 1.5 配额数据（5h / 周 / 视频赠送）— 直接调 remains_percent（非 IP 绑定，服务器可直接调）
+    $resp_q = tm_http_get('https://www.minimaxi.com/backend/account/token_plan/remains_percent', $headers);
+    if ($resp_q && $resp_q['code'] === 200) {
+        $qd = json_decode($resp_q['body'], true);
+        if ($qd && ($qd['base_resp']['status_code'] ?? 0) === 0 && !empty($qd['model_remains'])) {
+            $quotas = [];
+            foreach ($qd['model_remains'] as $m) {
+                $mname = $m['model_name'] ?? '';
+                $used_pct = intval(rtrim($m['current_interval_used_percent'] ?? '0%', '%'));
+                $reset_ts = intval(($m['end_time'] ?? 0) / 1000);
+                $pos = function($v) { $i = intval($v ?? -1); return $i > 0 ? $i : null; };
+                if ($mname === 'general') {
+                    $quotas['5h'] = [
+                        'used_pct' => $used_pct,
+                        'used'     => $pos($m['current_interval_used_count'] ?? -1),
+                        'total'    => $pos($m['current_interval_total_count'] ?? -1),
+                        'reset_ts' => $reset_ts,
+                    ];
+                    $quotas['weekly'] = [
+                        'used_pct' => intval(rtrim($m['current_weekly_used_percent'] ?? '0%', '%')),
+                        'used'     => $pos($m['current_weekly_used_count'] ?? -1),
+                        'total'    => $pos($m['current_weekly_total_count'] ?? -1),
+                        'reset_ts' => intval(($m['weekly_end_time'] ?? 0) / 1000),
+                    ];
+                } elseif ($mname === 'video') {
+                    $quotas['video'] = [
+                        'used_pct' => $used_pct,
+                        'used'     => intval($m['current_interval_used_count'] ?? 0),
+                        'total'    => intval($m['current_interval_total_count'] ?? 0),
+                        'reset_ts' => $reset_ts,
+                    ];
+                }
+            }
+            if (!empty($quotas)) {
+                $result['quotas'] = $quotas;
+                $q5h = $quotas['5h']['used_pct'] ?? 0;
+                $qw  = $quotas['weekly']['used_pct'] ?? 0;
                 $result['remaining'] = "5h:{$q5h}% | 周:{$qw}%";
             }
         }

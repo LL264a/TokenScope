@@ -1,6 +1,7 @@
 """SQLite 数据层 - 只管存取，不关心数据从哪来"""
 
 import json
+import os
 import time
 import sqlite3
 from typing import Optional
@@ -158,6 +159,59 @@ def get_latest_usage() -> list[dict]:
             pass
         results.append(item)
     return results
+
+
+# ============ 数据保留 / 清理 ============
+
+RETENTION_DAYS = 7  # platform_usage 仅前端取最新一条，历史行全部冗余，保留最近 7 天
+
+def db_size_mb() -> float:
+    """当前库文件体积（含 -wal / -shm 附属文件），单位 MB"""
+    total = 0.0
+    for suffix in ("", "-wal", "-shm"):
+        p = DB_PATH + suffix
+        if os.path.exists(p):
+            total += os.path.getsize(p)
+    return total / 1048576.0
+
+def prune_old_usage(days: int = RETENTION_DAYS) -> dict:
+    """清理超过保留期的历史用量数据，并 VACUUM 回收空间。
+
+    platform_usage 前端只读取每个平台最新一条，历史行全部冗余；
+    refresh_log 保留 30 天用于排查失败。
+    """
+    conn = get_conn()
+    before = db_size_mb()
+
+    cutoff = time.time() - days * 86400
+    # 安全网：即使某平台数据已超保留期，也永远保留其最新一条快照，
+    # 避免采集中断(如凭证丢失/进程挂掉)超过保留期后看板被彻底清空。
+    cur = conn.execute(
+        "DELETE FROM platform_usage WHERE timestamp < ? "
+        "AND (platform, timestamp) NOT IN ("
+        "SELECT platform, MAX(timestamp) FROM platform_usage GROUP BY platform)",
+        (cutoff,),
+    )
+    removed_pu = cur.rowcount
+
+    log_cutoff = time.time() - 30 * 86400
+    cur2 = conn.execute("DELETE FROM refresh_log WHERE timestamp < ?", (log_cutoff,))
+    removed_rl = cur2.rowcount
+
+    conn.commit()
+    try:
+        conn.execute("VACUUM")
+    except sqlite3.OperationalError as e:
+        print(f"[DB] VACUUM 失败(可忽略): {e}")
+
+    after = db_size_mb()
+    return {
+        "retention_days": days,
+        "platform_usage_removed": removed_pu,
+        "refresh_log_removed": removed_rl,
+        "freed_mb": round(max(0.0, before - after), 2),
+        "db_size_mb": round(after, 2),
+    }
 
 
 # ============ 凭证 ============

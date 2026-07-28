@@ -14,6 +14,11 @@ define('TM_ROOT', __DIR__);
 define('TM_DB_PATH', '/var/lib/token-monitor/data/token_monitor.db');
 define('TM_DATA_DIR', '/var/lib/token-monitor/data');
 
+// ============ 数据保留策略（防止 platform_usage 无限制增长） ============
+// platform_usage 每个采集周期都会 INSERT，但前端只读取每个平台最新一条，
+// 历史行纯属冗余。保留最近 N 天即可，超过由 cron 每日自动清理并 VACUUM 回收空间。
+define('TM_DATA_RETENTION_DAYS', 7);
+
 // ============ 平台配置 ============
 define('TM_PLATFORMS', [
     'tencent' => [
@@ -35,7 +40,7 @@ define('TM_PLATFORMS', [
             ['key' => 'volcano', 'name' => '方舟余额', 'plan_type' => 'volcano'],
         ],
         'credential_types' => ['cookie', 'api_key'],
-        'cookie_hint' => '从浏览器 DevTools 复制 Cookie（需先登录 console.volcengine.com）→ Cookie中需包含 csrfToken',
+        'cookie_hint' => '从浏览器 DevTools 复制 Cookie（需先登录 console.volcengine.com）→ Cookie中需包含 csrfToken。支持 Netscape 格式（可直接粘贴 Chrome 插件导出的 cookie.txt）',
         'api_key_hint' => 'JSON格式: {"ak":"AccessKey","sk":"SecretKey"}  从火山引擎控制台 → 安全认证获取（仅查余额，不含Coding Plan配额）' . "\n\n" . '💡 同时配Cookie和AK/SK: {"cookie":"完整Cookie","ak":"AK","sk":"SK"}',
     ],
     'xiaomi' => [
@@ -45,7 +50,7 @@ define('TM_PLATFORMS', [
             ['key' => 'xiaomi', 'name' => 'MiMo 用量', 'plan_type' => 'xiaomi'],
         ],
         'credential_types' => ['cookie'],
-        'cookie_hint' => '从浏览器 DevTools 复制 Cookie（需先登录 platform.xiaomimimo.com）',
+        'cookie_hint' => '从浏览器 DevTools 复制 Cookie（需先登录 platform.xiaomimimo.com）。支持 Netscape 格式（可直接粘贴 Chrome 插件导出的 cookie.txt）',
     ],
     'deepseek' => [
         'name' => 'DeepSeek',
@@ -65,7 +70,7 @@ define('TM_PLATFORMS', [
             ['key' => 'minimax_gateway', 'name' => '中转站网关', 'plan_type' => 'minimax_gateway'],
         ],
         'credential_types' => ['cookie', 'api_key'],
-        'cookie_hint' => '官方平台 Cookie（登录 platform.minimaxi.com → F12 → Application → Cookies → 复制全部）→ 显示 Token Plan 用量与模型明细',
+        'cookie_hint' => '官方平台 Cookie（登录 platform.minimaxi.com → F12 → Application → Cookies → 复制全部）。支持 Netscape 格式（可直接粘贴 Chrome 插件导出的 cookie.txt，含 HttpOnly 的 _sid/_token 也会保留）',
         'api_key_hint' => '中转站 API Key（minnimax.chat，以 gw- 开头）→ 显示 5h/周额度',
     ],
     'gpt_gateway' => [

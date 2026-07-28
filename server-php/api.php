@@ -228,6 +228,15 @@ if ($path === '/api/admin/refresh-log' && $method === 'DELETE') {
     tm_json_response(['status' => 'ok']);
 }
 
+// POST /api/admin/prune —— 手动触发历史数据清理（保留天数可经 body.days 覆盖）
+if ($path === '/api/admin/prune' && $method === 'POST') {
+    tm_require_auth();
+    $days = isset($input['days']) ? intval($input['days']) : TM_DATA_RETENTION_DAYS;
+    if ($days < 1) $days = 1;
+    $res = tm_prune_old_usage($days);
+    tm_json_response(array_merge(['ok' => true], $res));
+}
+
 if ($path === '/api/admin/scheduler' && $method === 'GET') {
     tm_require_auth();
     $running = tm_get_setting('scheduler_running', '0') === '1';

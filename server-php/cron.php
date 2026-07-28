@@ -9,6 +9,8 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/collectors.php';
 
+tm_init_tables(); // 确保表结构存在（含 refresh_settings），否则 tm_get_setting 会报 no such table
+
 $max_run = 55; // 最多跑 55 秒，留 5 秒给下次 crontab 触发
 
 $start_time = time();
@@ -56,6 +58,17 @@ while (true) {
         else { $fail++; echo "  ❌ $platform: " . ($r['error'] ?? '') . "\n"; }
     }
     echo "[" . date('Y-m-d H:i:s') . "] 完成: {$ok}成功 {$fail}失败\n";
+
+    // 每日自动清理历史用量数据，防止无限制增长导致库文件膨胀（如 8.7GB 遗留问题）
+    $prune_date = tm_get_setting('last_prune_date', '');
+    $today = date('Y-m-d');
+    if ($prune_date !== $today) {
+        $pruned = tm_prune_old_usage(TM_DATA_RETENTION_DAYS);
+        tm_set_setting('last_prune_date', $today);
+        echo "[" . date('Y-m-d H:i:s') . "] 自动清理历史数据: 删除 platform_usage "
+            . $pruned['platform_usage_removed'] . " 行 / refresh_log " . $pruned['refresh_log_removed']
+            . " 行, 释放 " . $pruned['freed_mb'] . " MB\n";
+    }
 
     // 等下一次采集（扣除本次耗时，保证实际间隔 = interval）
     $collect_took = $collect_end - $collect_start;

@@ -52,3 +52,28 @@ Thumbs.db
 
 # Secrets
 internal_key.txt
+.ssh_key
+.ssh_user_key
+.ssh_workbuddy
+.ssh_workbuddy.pub
+
+# Scratch / debug / temp (relocated to _archive/)
+_archive/
+cdp_*.py
+tmp_*
+debug_*.php
+nul
+node_modules/
+chrome-data/
+chrome-dev-data/
+deploy/
+overview*.md
+package.json
+package-lock.json
+screenshot*.py
+screenshots/
+upgrade_cred.py
+volcano_api_capture.json
+token_monitor.db
+tokens.db
+server_stderr.log

@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <title>Token 监控面板</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='10.5' y='1' width='3' height='14' rx='1.5' fill='%2360a5fa'/%3E%3Crect x='3.5' y='3.5' width='17' height='3' rx='1.5' fill='%23c084fc'/%3E%3Ccircle cx='12' cy='12' r='7' stroke='%234ade80' stroke-width='1.5' fill='none'/%3E%3Ctext x='12' y='15' text-anchor='middle' font-family='system-ui,sans-serif' font-size='9' font-weight='700' fill='%234ade80'%3ET%3C/text%3E%3C/svg%3E">
-    <script>/* 版本号 */ const APP_VERSION = 'v1.9.3';</script>
+    <script>/* 版本号 */ const APP_VERSION = 'v1.9.4';</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -255,10 +255,11 @@
         .progress-track { width: 100%; height: 10px; background: #1e293b; border-radius: 5px; overflow: hidden; }
         .progress-fill { height: 100%; border-radius: 5px; transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
         .fill-green { background: linear-gradient(90deg, #22c55e, #4ade80); }
+        .fill-blue { background: linear-gradient(90deg, #2563eb, #60a5fa); }
         .fill-yellow { background: linear-gradient(90deg, #eab308, #fbbf24); }
         .fill-red { background: linear-gradient(90deg, #dc2626, #f87171); }
         .quota-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
-        .quota-pct { font-size: 12px; font-weight: 600; }
+        .quota-pct { font-size: 16px; font-weight: 700; }
         .quota-refresh { font-size: 11px; color: #4b5563; }
 
         /* ====== 传统计划 ====== */
@@ -290,6 +291,44 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+
+        /* ====== 无数据 / 需更新凭证 卡片 ====== */
+        .nodata-card { border: 1px dashed rgba(251,191,36,0.35); background: #0f172a; }
+        .nodata-body {
+            padding: 28px 24px 32px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        .nodata-icon { font-size: 34px; opacity: 0.9; }
+        .nodata-msg {
+            font-size: 14px;
+            color: #cbd5e1;
+            line-height: 1.6;
+            max-width: 480px;
+        }
+        .nodata-err-at {
+            font-size: 12px;
+            color: #94a3b8;
+            background: rgba(148,163,184,0.08);
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+        .nodata-btn { margin-top: 6px; }
+
+        /* ====== 数据过期提示条（有数据但近期采集失败） ====== */
+        .stale-banner {
+            background: linear-gradient(90deg, rgba(251,191,36,0.20), rgba(251,191,36,0.07));
+            color: #fcd34d;
+            font-size: 12.5px;
+            font-weight: 600;
+            padding: 9px 22px;
+            border-bottom: 1px solid rgba(251,191,36,0.28);
+            letter-spacing: 0.2px;
+            line-height: 1.4;
         }
 
         /* ====== MiniMax 气泡卡片 ====== */
@@ -366,6 +405,7 @@
         .yellow { color: #fbbf24; }
         .red { color: #f87171; }
         .blue { color: #60a5fa; }
+        .blue { color: #60a5fa; }
 
         .empty-state { text-align: center; padding: 40px; color: #4b5563; }
         .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
@@ -414,6 +454,13 @@
         .logout-btn:hover { border-color: #ef4444; color: #ef4444; }
 
         /* ====== 管理后台 ====== */
+        /* Tab 导航 */
+        .admin-tabs { display: flex; gap: 4px; margin-bottom: 24px; background: #0d1117; border-radius: 12px; padding: 4px; border: 1px solid #1e293b; }
+        .admin-tab { flex: 1; padding: 10px 16px; border: none; border-radius: 10px; background: transparent; color: #64748b; font-size: 13px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+        .admin-tab:hover { color: #94a3b8; background: rgba(255,255,255,0.03); }
+        .admin-tab.active { background: #1e293b; color: #e2e8f0; font-weight: 600; }
+        .admin-tab-content { display: none; }
+        .admin-tab-content.active { display: block; }
         .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
         .admin-card { background: #111827; border: 1px solid #1e293b; border-radius: 14px; padding: 24px; }
         .admin-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
@@ -424,6 +471,26 @@
         .cred-type-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
         .type-cookie { background: rgba(251,191,36,0.15); color: #fbbf24; }
         .type-api_key { background: rgba(96,165,250,0.15); color: #60a5fa; }
+
+        /* 凭证气泡卡片 */
+        .cred-bubble { background: #0d1117; border: 1px solid #1e293b; border-radius: 14px; margin-bottom: 16px; overflow: hidden; }
+        .cred-bubble-header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: rgba(255,255,255,0.02); border-bottom: 1px solid #1e293b; }
+        .cred-bubble-icon { font-size: 20px; }
+        .cred-bubble-header strong { font-size: 15px; color: #e2e8f0; }
+        .cred-bubble-count { margin-left: auto; font-size: 11px; color: #4b5563; background: #111827; padding: 3px 10px; border-radius: 20px; }
+        .cred-bubble-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #0a0e1a; flex-wrap: wrap; }
+        .cred-bubble-item:last-child { border-bottom: none; }
+        .cred-item-note { font-size: 12px; color: #94a3b8; min-width: 40px; }
+        .cred-item-time { font-size: 11px; color: #4b5563; margin-left: auto;
+                        }
+        .cred-update-area { margin-top: 6px; display: none; }
+        .cred-update-area.active { display: block; }
+        .cred-update-area textarea { width: 100%; min-height: 60px; font-size: 12px; padding: 6px 8px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; resize: vertical; margin-bottom: 4px; }
+        .cred-update-area .btn { padding: 3px 10px; font-size: 11px; margin-right: 4px; }
+        .cred-check-result { font-size: 11px; margin-top: 4px; padding: 4px 8px; border-radius: 6px; }
+        .cred-check-ok { background: #064e3b; color: #6ee7b7; }
+        .cred-check-fail { background: #7f1d1d; color: #fca5a5; }
+        .cred-check-loading { color: #94a3b8; }
 
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
@@ -472,15 +539,20 @@
         @keyframes slideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
 
         @media (max-width: 768px) {
+            .admin-tabs { flex-wrap: wrap; gap: 2px; }
+            .admin-tab { flex: 1 1 auto; padding: 8px 10px; font-size: 12px; }
             .admin-grid { grid-template-columns: 1fr; }
             .admin-card { padding: 16px; }
             .admin-card.full-width { overflow-x: auto; }
             .cred-table { font-size: 10px; }
-            .cred-table th, .cred-table td { padding: 4px 6px; white-space: nowrap; }
-            .cred-update-area textarea { min-height: 40px; font-size: 11px; }
+            .cred-table th { padding: 4px 6px; white-space: nowrap; }
+            .cred-table td { padding: 4px 6px; white-space: normal; word-break: break-all; }
+            .cred-update-row td { padding: 8px; }
+            .cred-update-row textarea { width: 100%; min-height: 80px; font-size: 14px; padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; resize: vertical; margin-bottom: 8px; }
             .admin-card h3 { font-size: 14px; }
             .admin-card .form-group input, .admin-card .form-group select, .admin-card .form-group textarea { font-size: 12px; }
             #new-key-box { font-size: 11px; }
+            .cred-actions .btn { padding: 4px 8px; font-size: 11px; }
         }
         /* 开关样式 */
         .toggle-switch input:checked + .toggle-slider { background: #34d399; }
@@ -488,6 +560,26 @@
         .toggle-slider::before { content:""; position:absolute; width:18px; height:18px; left:2px; bottom:2px; background:#e2e8f0; border-radius:50%; transition:0.3s; }
         #sort_mode-label.on { color: #34d399; font-weight: 500; }
         #sort_mode-label.off { color: #94a3b8; }
+
+        /* 日志页 */
+        .log-lvl { padding: 6px 14px; border: none; border-radius: 8px; background: transparent; color: #64748b; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+        .log-lvl:hover { color: #94a3b8; }
+        .log-lvl.active { background: #1e293b; color: #e2e8f0; font-weight: 600; }
+        .log-entry { display: flex; align-items: flex-start; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #0a0e1a; font-size: 13px; }
+        .log-entry:hover { background: rgba(255,255,255,0.01); }
+        .log-entry-time { font-size: 11px; color: #4b5563; min-width: 130px; font-family: Consolas, monospace; }
+        .log-entry-platform { font-size: 12px; color: #94a3b8; min-width: 80px; }
+        .log-entry-level { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; min-width: 44px; text-align: center; }
+        .lvl-INFO { background: rgba(34,197,94,0.12); color: #4ade80; }
+        .lvl-WARN { background: rgba(251,191,36,0.12); color: #fbbf24; }
+        .lvl-ERROR { background: rgba(239,68,68,0.12); color: #f87171; }
+        .log-entry-msg { flex: 1; color: #cbd5e1; word-break: break-all; }
+        .log-entry-dur { font-size: 11px; color: #4b5563; min-width: 50px; text-align: right; }
+        @media (max-width: 768px) {
+            .log-entry { flex-wrap: wrap; gap: 4px; }
+            .log-entry-time { min-width: auto; }
+            .log-entry-platform { min-width: auto; }
+        }
     </style>
 </head>
 <body>
@@ -496,6 +588,7 @@
         <div class="nav-btns">
             <button class="active" onclick="switchPage('monitor')" id="btn-monitor">📊 <span class="btn-label">数据</span></button>
             <button onclick="switchPage('admin')" id="btn-admin">⚙️ <span class="btn-label">设置</span></button>
+            <button onclick="switchPage('logs')" id="btn-logs">📋 <span class="btn-label">日志</span></button>
         </div>
         <div class="meta">
             <span><span class="live-dot"></span> <span id="status">连接中...</span></span>
@@ -526,10 +619,24 @@
             <div id="admin-auth-area"></div>
             <!-- 已认证：管理内容 -->
             <div id="admin-content" style="display:none">
-                <div class="admin-grid">
-                    <!-- 手动添加凭证 -->
-                    <div class="admin-card">
-                        <h3>➕ 手动添加凭证</h3>
+                <!-- Tab 导航 -->
+                <div class="admin-tabs">
+                    <button class="admin-tab active" onclick="switchAdminTab('credentials')">🍪 Cookie 凭证</button>
+                    <button class="admin-tab" onclick="switchAdminTab('sort')">🔢 平台排序</button>
+                    <button class="admin-tab" onclick="switchAdminTab('api')">🔑 API 与安全</button>
+                    <button class="admin-tab" onclick="switchAdminTab('logs')">📋 系统日志</button>
+                </div>
+
+                <!-- Tab 1: Cookie 凭证 -->
+                <div class="admin-tab-content active" id="tab-credentials">
+                    <!-- 已保存凭证 -->
+                    <div class="admin-card full-width" style="margin-bottom:24px">
+                        <h3>🔐 已保存的凭证</h3>
+                        <div id="cred-cards"></div>
+                    </div>
+                    <!-- 添加凭证 -->
+                    <div class="admin-card" style="margin-bottom:24px">
+                        <h3>➕ 添加凭证</h3>
                         <div class="form-group">
                             <label>平台</label>
                             <select id="cred-platform" onchange="onPlatformChange()">
@@ -551,8 +658,10 @@
                         </div>
                         <button class="btn btn-primary" onclick="saveCredential()">💾 保存凭证</button>
                     </div>
+                </div>
 
-                    <!-- 平台排序 + 调度器 -->
+                <!-- Tab 2: 平台排序 -->
+                <div class="admin-tab-content" id="tab-sort">
                     <div class="admin-card">
                         <h3>🔢 平台排序</h3>
                         <div class="scheduler-status">
@@ -562,7 +671,7 @@
                             </div>
                             <span style="font-size:13px;color:#64748b" id="scheduler-interval-label">间隔: 30秒</span>
                         </div>
-                        <div style="font-size:12px;color:#4b5563;margin-bottom:12px;line-height:1.6">拖动调整前端展示顺序。服务器 cron 每分钟采集，默认 30 秒间隔。</div>
+                        <div style="font-size:12px;color:#4b5563;margin-bottom:12px;line-height:1.6">拖动调整前端展示顺序。服务器 cron 每60秒采集一次。</div>
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 12px;background:rgba(15,23,42,0.5);border-radius:8px">
                             <span style="font-size:13px;color:#94a3b8;min-width:52px">⚡ 排序</span>
                             <label class="toggle-switch" style="position:relative;display:inline-block;width:40px;height:22px">
@@ -573,74 +682,87 @@
                         </div>
                         <div id="sort-weight-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
                     </div>
+                </div>
 
-                    <!-- API 密钥 -->
-                    <div class="admin-card">
-                        <h3>🔑 API 密钥</h3>
-                        <div style="font-size:12px;color:#94a3b8;margin-bottom:12px">插件免密码认证。生成后复制密钥到插件即可使用</div>
-                        <div class="form-group">
-                            <label>备注名称</label>
-                            <input type="text" id="api-key-name" placeholder="如: Chrome 插件" value="Chrome Extension">
-                        </div>
-                        <button class="btn btn-primary" onclick="createApiKey()" style="margin-bottom:12px">➕ 生成新密钥</button>
-                        <div id="api-key-list" style="font-size:13px">
-                            <div style="color:#64748b;padding:6px 0">加载中...</div>
-                        </div>
-                    </div>
-
-                    <!-- 修改密码 -->
-                    <div class="admin-card">
-                        <h3>🔑 修改密码</h3>
-                        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
-                            <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
-                                <label>当前密码</label>
-                                <div style="display:flex;gap:4px;align-items:center">
-                                    <input type="password" id="old-password" placeholder="输入当前密码" style="flex:1">
-                                    <button onclick="togglePW('old-password',this)" type="button" style="background:none;border:1px solid #334155;border-radius:6px;padding:6px 8px;cursor:pointer;color:#94a3b8;font-size:13px;line-height:1">👁️</button>
-                                </div>
+                <!-- Tab 3: API 与安全 -->
+                <div class="admin-tab-content" id="tab-api">
+                    <div class="admin-grid" style="margin-bottom:0">
+                        <!-- API 密钥 -->
+                        <div class="admin-card">
+                            <h3>🔑 API 密钥</h3>
+                            <div style="font-size:12px;color:#94a3b8;margin-bottom:12px">插件免密码认证。生成后复制密钥到插件即可使用</div>
+                            <div class="form-group">
+                                <label>备注名称</label>
+                                <input type="text" id="api-key-name" placeholder="如: Chrome 插件" value="Chrome Extension">
                             </div>
-                            <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
-                                <label>新密码</label>
-                                <div style="display:flex;gap:4px;align-items:center">
-                                    <input type="password" id="new-password" placeholder="至少4位" style="flex:1">
-                                    <button onclick="togglePW('new-password',this)" type="button" style="background:none;border:1px solid #334155;border-radius:6px;padding:6px 8px;cursor:pointer;color:#94a3b8;font-size:13px;line-height:1">👁️</button>
-                                </div>
+                            <button class="btn btn-primary" onclick="createApiKey()" style="margin-bottom:12px">➕ 生成新密钥</button>
+                            <div id="api-key-list" style="font-size:13px">
+                                <div style="color:#64748b;padding:6px 0">加载中...</div>
                             </div>
-                            <button class="btn btn-warning" onclick="changePassword()" style="margin-bottom:0">修改密码</button>
+                        </div>
+                        <!-- 修改密码 -->
+                        <div class="admin-card">
+                            <h3>🔑 修改密码</h3>
+                            <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+                                <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
+                                    <label>当前密码</label>
+                                    <div style="display:flex;gap:4px;align-items:center">
+                                        <input type="password" id="old-password" placeholder="输入当前密码" style="flex:1">
+                                        <button onclick="togglePW('old-password',this)" type="button" style="background:none;border:1px solid #334155;border-radius:6px;padding:6px 8px;cursor:pointer;color:#94a3b8;font-size:13px;line-height:1">👁️</button>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
+                                    <label>新密码</label>
+                                    <div style="display:flex;gap:4px;align-items:center">
+                                        <input type="password" id="new-password" placeholder="至少4位" style="flex:1">
+                                        <button onclick="togglePW('new-password',this)" type="button" style="background:none;border:1px solid #334155;border-radius:6px;padding:6px 8px;cursor:pointer;color:#94a3b8;font-size:13px;line-height:1">👁️</button>
+                                    </div>
+                                </div>
+                                <button class="btn btn-warning" onclick="changePassword()" style="margin-bottom:0">修改密码</button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 已保存凭证 -->
-                <div class="admin-card full-width" style="margin-bottom:24px">
-                    <h3>🔐 已保存的凭证</h3>
-                    <table class="cred-table">
-                        <thead><tr><th>平台</th><th>类型</th><th>备注</th><th>更新时间</th><th>操作</th></tr></thead>
-                        <tbody id="cred-tbody"></tbody>
-                    </table>
-                    <style>
-                    .cred-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-                    .cred-actions .btn { padding: 3px 10px; font-size: 11px; white-space: nowrap; }
-                    .cred-update-area { margin-top: 6px; display: none; }
-                    .cred-update-area.active { display: block; }
-                    .cred-update-area textarea { width: 100%; min-height: 60px; font-size: 12px; padding: 6px 8px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; resize: vertical; margin-bottom: 4px; }
-                    .cred-update-area .btn { padding: 3px 10px; font-size: 11px; margin-right: 4px; }
-                    .cred-check-result { font-size: 11px; margin-top: 4px; padding: 4px 8px; border-radius: 6px; }
-                    .cred-check-ok { background: #064e3b; color: #6ee7b7; }
-                    .cred-check-fail { background: #7f1d1d; color: #fca5a5; }
-                    .cred-check-loading { color: #94a3b8; }
-                    </style>
+                <!-- Tab 4: 系统日志 -->
+                <div class="admin-tab-content" id="tab-logs">
+                    <div class="admin-card full-width">
+                        <h3>📋 刷新日志 <span style="font-size:12px;font-weight:400;color:#64748b;margin-left:8px">最近10条</span>
+                            <button onclick="clearRefreshLog()" style="float:right;background:none;border:0.5px solid #ef4444;color:#ef4444;font-size:11px;padding:2px 10px;border-radius:6px;cursor:pointer">清空</button>
+                        </h3>
+                        <table class="log-table">
+                            <thead><tr><th>时间</th><th>平台</th><th>状态</th><th>消息</th></tr></thead>
+                            <tbody id="log-tbody"></tbody>
+                        </table>
+                    </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- 刷新日志 -->
-                <div class="admin-card full-width">
-                    <h3>📋 刷新日志 <span style="font-size:12px;font-weight:400;color:#64748b;margin-left:8px">最近10条</span>
-                        <button onclick="clearRefreshLog()" style="float:right;background:none;border:0.5px solid #ef4444;color:#ef4444;font-size:11px;padding:2px 10px;border-radius:6px;cursor:pointer">清空</button>
-                    </h3>
-                    <table class="log-table">
-                        <thead><tr><th>时间</th><th>平台</th><th>状态</th><th>消息</th></tr></thead>
-                        <tbody id="log-tbody"></tbody>
-                    </table>
+        <!-- ====== 日志页 ====== -->
+        <div class="page" id="page-logs">
+            <div id="logs-auth-notice" class="admin-locked-notice" style="display:none">
+                <div class="icon">🔒</div>
+                <div class="msg">请先登录</div>
+                <div class="hint">切换到设置页完成认证后即可查看日志</div>
+            </div>
+            <div id="logs-content">
+                <div class="log-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+                    <div class="log-level-tabs" style="display:flex;gap:4px;background:#0d1117;border-radius:10px;padding:4px;border:1px solid #1e293b">
+                        <button class="log-lvl active" data-lvl="" onclick="filterLogLevel('')">全部</button>
+                        <button class="log-lvl" data-lvl="INFO" onclick="filterLogLevel('INFO')">🟢 INFO</button>
+                        <button class="log-lvl" data-lvl="WARN" onclick="filterLogLevel('WARN')">🟡 WARN</button>
+                        <button class="log-lvl" data-lvl="ERROR" onclick="filterLogLevel('ERROR')">🔴 ERROR</button>
+                    </div>
+                    <select id="log-platform-filter" onchange="loadLogs()" style="padding:8px 12px;background:#0d1117;border:1px solid #1e293b;border-radius:8px;color:#e2e8f0;font-size:13px">
+                        <option value="">所有平台</option>
+                    </select>
+                    <input id="log-search" type="text" placeholder="搜索..." oninput="loadLogs()" style="flex:1;min-width:120px;padding:8px 12px;background:#0d1117;border:1px solid #1e293b;border-radius:8px;color:#e2e8f0;font-size:13px;max-width:240px">
+                    <button class="btn btn-danger" onclick="clearRefreshLog()" style="margin-left:auto;font-size:11px;padding:6px 12px">清空日志</button>
+                </div>
+                <div id="log-entries"></div>
+                <div id="log-load-more" style="text-align:center;padding:16px">
+                    <button class="btn btn-outline" onclick="loadLogs(true)" id="log-more-btn">加载更多</button>
                 </div>
             </div>
         </div>
@@ -651,11 +773,12 @@
 const NAMES = {
     tencent:'腾讯云', tencent_codingplan:'Coding Plan',
     tencent_hy_tokenplan:'Hy Token Plan', tencent_tokenplan:'Token Plan（通用）',
-    volcano:'火山引擎', volcano_codingplan:'Coding Plan', volcano_ark:'火山方舟',
+    volcano:'火山引擎', volcano_codingplan:'Coding Plan + Agent Plan', volcano_ark:'火山方舟',
     volcano_balance:'火山方舟',
     xiaomi:'MIMO',
     deepseek:'DeepSeek',
-    minimax:'MiniMax'
+    minimax:'MiniMax', minimax_gateway:'MiniMax中转',
+    gpt_gateway:'GPT中转',
 };
 
 /* 子平台 → 父平台映射 */
@@ -664,6 +787,26 @@ const SUB_TO_PARENT = {
     volcano_codingplan:'volcano', volcano_ark:'volcano', volcano_balance:'volcano',
 };
 
+/* 平台官网链接 */
+const PLATFORM_URLS = {
+    tencent:'https://console.cloud.tencent.com/tokenhub/codingplan',
+    volcano:'https://console.volcengine.com/ark/region:ark+cn-beijing/plan',
+    xiaomi:'https://platform.xiaomimimo.com/console/plan-manage',
+    deepseek:'https://platform.deepseek.com/usage',
+    minimax:'https://platform.minimaxi.com/console/usage',
+    minimax_gateway:'https://minnimax.chat/usage',
+    gpt_gateway:'http://68.64.183.211/dashboard',
+};
+
+/* 点击平台卡片标题跳转官方链接 */
+document.addEventListener('click', function(e) {
+    if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input') || e.target.closest('select')) return;
+    const title = e.target.closest('.platform-title');
+    if (!title) return;
+    const url = PLATFORM_URLS[title.dataset.platform];
+    if (url) window.open(url, '_blank');
+});
+
 let cd = 30;
 let lastDataHash = '';
 window._refreshInterval = 30;
@@ -671,6 +814,7 @@ window._refreshInterval = 30;
 /* ====== 认证状态 ====== */
 let authToken = localStorage.getItem('token') || '';
 let isLoggedIn = false;
+let currentSortMode = 'weight'; // 排序模式单一真相源：'weight' | 'realtime'，由 loadSortMode / toggleSortMode 写入（根因2 解耦）
 let hasPassword = false;
 
 /* 带认证的 fetch 封装 */
@@ -887,8 +1031,33 @@ async function switchPage(page) {
     if (page === 'admin') {
         await checkAuthStatus();
         renderAuthArea();
-        if (isLoggedIn) loadAdminData();
+        if (isLoggedIn) { loadAdminData(); }
     }
+    if (page === 'logs') {
+        await checkAuthStatus();
+        const notice = document.getElementById('logs-auth-notice');
+        const content = document.getElementById('logs-content');
+        if (isLoggedIn) {
+            notice.style.display = 'none';
+            content.style.display = '';
+            if (!window._logsLoaded) { loadLogs(); window._logsLoaded = true; }
+        } else {
+            notice.style.display = '';
+            content.style.display = 'none';
+        }
+    }
+}
+
+/* ====== 管理页 Tab 切换 ====== */
+function switchAdminTab(tab) {
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.admin-tab').forEach(t => {
+        if (t.getAttribute('onclick') === "switchAdminTab('" + tab + "')") t.classList.add('active');
+    });
+    document.getElementById('tab-' + tab).classList.add('active');
+    // 切换到排序 tab 时主动刷新列表（根因1：原仅打开管理页渲染一次，切子 tab 不刷新）
+    if (tab === 'sort') loadSortWeights();
 }
 
 /* ====== Toast ====== */
@@ -925,6 +1094,12 @@ function getColorClass(pct) {
     if (pct >= 50) return { fill: 'fill-yellow', text: 'yellow' };
     return { fill: 'fill-green', text: 'green' };
 }
+/* 腾讯云每月额度独立颜色：70黄 90红，以下蓝色 */
+function getMonthlyColorClass(pct) {
+    if (pct >= 90) return { fill: 'fill-red', text: 'red' };
+    if (pct >= 70) return { fill: 'fill-yellow', text: 'yellow' };
+    return { fill: 'fill-blue', text: 'blue' };
+}
 function getStatusBadge(usedPct) {
     if (usedPct >= 100) return { cls: 'badge-exhausted', text: '额度已用尽' };
     if (usedPct >= 80)  return { cls: 'badge-warning', text: '额度紧张' };
@@ -932,8 +1107,11 @@ function getStatusBadge(usedPct) {
 }
 function fmt(n) {
     if (!n) return '0';
-    if (n >= 1e8) return (n/1e8).toFixed(1) + ' 亿';
-    if (n >= 1e4) return (n/1e4).toFixed(1) + ' 万';
+    if (n >= 1e8) return (n/1e8).toFixed(2) + ' 亿';
+    if (n >= 1e7) return (n/1e7).toFixed(2) + ' 千万';
+    if (n >= 1e6) return (n/1e6).toFixed(2) + ' 百万';
+    if (n >= 1e5) return (n/1e5).toFixed(2) + ' 十万';
+    if (n >= 1e4) return (n/1e4).toFixed(2) + ' 万';
     if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
     return n.toLocaleString();
 }
@@ -953,7 +1131,8 @@ async function load() {
         // 数据哈希对比：数据没变不重渲染，避免排序跳动
         const newHash = JSON.stringify(stats.platforms.map(p => ({
             p: p.platform, lu: p.last_updated, nt: p.total_tokens, b: p.balance,
-            c: p.monthly_cost, nu: (p.model_usages||[]).map(m => m.model + m.response)
+            c: p.monthly_cost, nu: (p.model_usages||[]).map(m => m.model + m.response),
+            le: p.last_error, e: p.error, ce: p.cookie_expired
         })));
         if (newHash !== lastDataHash) {
             lastDataHash = newHash;
@@ -997,14 +1176,27 @@ function renderCookieAlert(statusList) {
 function renderNoDataCard(p) {
     const name = NAMES[p.platform] || p.platform;
     const ico = brandIcon(p.platform, 20) || '📊';
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title" style="font-size:22px">' + ico + ' ' + escHtml(name) + '</div><div class="subtitle">凭证已保存</div></div><span class="status-badge badge-warning">无数据</span></div><div style="padding:32px;text-align:center;color:#64748b"><div style="font-size:16px;margin-bottom:8px">⏳ 等待数据采集</div><div style="font-size:13px;color:#4b5563">凭证已保存，但尚未成功采集到数据。<br>可能是 Cookie 已失效，请在管理页更新凭证后刷新。</div></div><div class="card-footer"><span>' + escHtml(name) + '</span><span>-</span></div></div>';
+    const cfg = platformConfigs[p.platform];
+    const defType = (cfg && cfg.credential_types && cfg.credential_types[0]) ? cfg.credential_types[0] : 'cookie';
+    const errMsg = p.error ? p.error : '凭证已保存，但尚未成功采集到数据。';
+    const errAt = p.error_at ? ('<div class="nodata-err-at">最近失败：' + escHtml(p.error_at) + '</div>') : '';
+    return '<div class="plan-card nodata-card" style="flex:0 0 100%;min-width:0">' +
+        '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="' + p.platform + '">' + ico + ' ' + escHtml(name) + '</div><div class="subtitle">凭证已保存 · 采集未成功</div></div>' +
+        '<span class="status-badge badge-warning">需更新凭证</span></div>' +
+        '<div class="nodata-body">' +
+            '<div class="nodata-icon">🔑</div>' +
+            '<div class="nodata-msg">' + escHtml(errMsg) + '</div>' +
+            errAt +
+            '<button class="btn btn-primary nodata-btn" onclick="showUpdateCred(\'' + p.platform + '\',\'' + defType + '\')">✏️ 更新凭证并刷新</button>' +
+        '</div>' +
+        '<div class="card-footer"><span>' + escHtml(name) + '</span><span>—</span></div></div>';
 }
 
 function renderPlatforms(platforms) {
     // 权重模式：从 localStorage 读取拖动顺序覆盖后端排序
     const saved = JSON.parse(localStorage.getItem('platform_order') || '[]');
-    const sortModeToggle = document.getElementById('sort_mode-toggle');
-    const isWeight = sortModeToggle && !sortModeToggle.checked;
+    // 排序模式以全局变量 currentSortMode 为准（由 loadSortMode / toggleSortMode 维护），不再依赖管理页 DOM 元素状态（根因2）
+    const isWeight = currentSortMode !== 'realtime';
     if (isWeight && saved.length) {
         const savedSet = new Set(saved);
         // 先把有记录的平台按拖动顺序排
@@ -1027,14 +1219,23 @@ function renderPlatforms(platforms) {
         return;
     }
     el.innerHTML = platforms.map(p => {
-        if (p.no_data) return renderNoDataCard(p);
-        if (p.platform === 'tencent' && p.services) return renderTencentCard(p);
-        if (p.platform === 'volcano' && p.services) return renderVolcanoGroupCard(p);
-        if (p.platform === 'xiaomi') return renderXiaomiCard(p);
-        if (p.platform === 'minimax') return renderMiniMaxCard(p);
-        if (p.quotas) return renderCodingPlan(p);
-        if (p.remaining_pct !== undefined) return renderTokenPlan(p);
-        return renderFallback(p);
+        let card;
+        if (p.no_data) card = renderNoDataCard(p);
+        else if (p.platform === 'tencent' && p.services) card = renderTencentCard(p);
+        else if (p.platform === 'volcano' && p.services) card = renderVolcanoGroupCard(p);
+        else if (p.platform === 'xiaomi') card = renderXiaomiCard(p);
+        else if (p.platform === 'minimax' || p.platform === 'minimax_gateway') card = renderMiniMaxCard(p);
+        else if (p.platform === 'gpt_gateway') card = renderGptGatewayCard(p);
+        else if (p.quotas) card = renderCodingPlan(p);
+        else if (p.remaining_pct !== undefined) card = renderTokenPlan(p);
+        else card = renderFallback(p);
+        // 有数据但近期采集失败：在卡片顶部注入“数据可能过期”提示条
+        if (p.last_error) {
+            const banner = '<div class="stale-banner">⚠️ 数据可能过期 · ' + escHtml(p.last_error) +
+                (p.last_error_at ? ' · 最近失败 ' + escHtml(p.last_error_at) : '') + '</div>';
+            card = card.replace(/<div class="plan-card[^>]*>/, m => m + banner);
+        }
+        return card;
     }).join('');
 }
 
@@ -1042,34 +1243,35 @@ function renderPlatforms(platforms) {
 function renderVolcanoGroupCard(p) {
     const services = p.services || [];
     const visibleServices = services.filter(s => {
-        if (s.balance_available !== undefined && s.balance_available <= 0 && !s.quotas && s.remaining_pct === undefined) return false;
+        if (s.balance_available !== undefined && s.balance_available <= 0 && !s.quotas && !s.afp_quotas && s.remaining_pct === undefined) return false;
         return true;
     });
     let worstPct = 0, hasExhausted = false;
     visibleServices.forEach(s => {
         let usedPct = 0;
-        if (s.quotas) usedPct = Math.max(...Object.values(s.quotas).map(q => q.used_pct || 0));
+        const allQuotas = {...(s.quotas||{}), ...(s.afp_quotas||{})};
+        if (Object.keys(allQuotas).length > 0) usedPct = Math.max(...Object.values(allQuotas).map(q => q.used_pct || 0));
         else if (s.remaining_pct !== undefined) usedPct = 100 - s.remaining_pct;
         if (usedPct >= 100) hasExhausted = true;
         worstPct = Math.max(worstPct, usedPct);
     });
     const anyExhausted = visibleServices.some(s => {
         if (s.remaining_pct !== undefined && s.remaining_pct <= 0) return true;
-        if (s.quotas) return Object.values(s.quotas).some(q => q.used_pct >= 100);
-        return false;
+        const allQuotas = {...(s.quotas||{}), ...(s.afp_quotas||{})};
+        return Object.values(allQuotas).some(q => q.used_pct >= 100);
     });
     const badge = getStatusBadge(anyExhausted ? 100 : worstPct);
 
     let servicesHtml = visibleServices.map(s => {
         let subName = NAMES[s.platform] || s.platform;
         if (s.platform === 'volcano' && s.balance_available !== undefined) subName = '火山方舟';
-        if (s.quotas) return renderSubCodingPlan(s, subName);
+        if (s.quotas || s.afp_quotas) return renderSubCodingPlan(s, subName);
         if (s.remaining_pct !== undefined) return renderSubTokenPlan(s, subName);
         if (s.balance_available !== undefined) return renderVolcanoBalanceSub(s, subName);
         return '<div class="sub-service"><div class="sub-header">' + subName + '</div><div style="padding:12px;color:#4b5563">数据格式异常</div></div>';
     }).join('');
 
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('volcano', 20) + '火山引擎</div><div class="subtitle">' + visibleServices.length + ' 个服务 · 北京区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>火山引擎 · ' + visibleServices.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="volcano">' + brandIcon('volcano', 20) + '火山引擎</div><div class="subtitle">' + visibleServices.length + ' 个服务 · 北京区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>火山引擎 · ' + visibleServices.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 /* 子服务: 火山余额 */
@@ -1117,7 +1319,7 @@ function renderTencentCard(p) {
         return '<div class="sub-service"><div class="sub-header">' + subName + '</div><div style="padding:12px;color:#4b5563">数据格式异常</div></div>';
     }).join('');
 
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('tencent', 20) + '腾讯云</div><div class="subtitle">' + services.length + ' 个服务 · 广州区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>腾讯云 · ' + services.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="tencent">' + brandIcon('tencent', 20) + '腾讯云</div><div class="subtitle">' + services.length + ' 个服务 · 广州区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>腾讯云 · ' + services.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 /* 平台品牌 SVG 图标 */
@@ -1145,37 +1347,79 @@ function escJs(s) {
 
 /* 子服务: Coding Plan */
 function renderSubCodingPlan(s, name) {
+    const quotaLabels = { 'daily': {name:'每日',icon:'📆'}, '5h': {name:'每5小时',icon:'⚡'}, 'weekly': {name:'每周',icon:'📅'}, 'monthly': {name:'每订阅月',icon:'📆'} };
+    const afpLabels = { '5h': {name:'每5小时',icon:'⚡'}, 'weekly': {name:'每周',icon:'📅'}, 'monthly': {name:'每订阅月',icon:'📆'} };
+
+    /* 渲染一组配额为 HTML，返回 {html, hasExhausted, recoveryTime} */
+    function renderQuotaBlock(quotas, labels, unit) {
+        let html = '';
+        let blockExhausted = false;
+        let blockRecovery = '';
+        for (const [key, info] of Object.entries(quotas)) {
+            const label = labels[key] || {name:key,icon:'📊'};
+            const pct = info.used_pct || 0;
+            const hasTotal = info.total > 0;
+            const remaining = hasTotal ? (info.total - Math.round(info.total * pct / 100)) : 0;
+            const c = (key === 'monthly') ? getMonthlyColorClass(pct) : getColorClass(pct);
+            const isBlocked = pct >= 100;
+            if (isBlocked) { blockExhausted = true; if (info.refresh_at && (!blockRecovery || info.refresh_at < blockRecovery)) blockRecovery = info.refresh_at; }
+            const totalHint = hasTotal ? '<span class="quota-total-hint">(总量 ' + info.total.toLocaleString() + ' ' + unit + ')</span>' : '';
+            const remainingText = hasTotal ? '剩余 ' + remaining.toLocaleString() + ' ' + unit : (100-pct).toFixed(1) + '% 可用';
+            html += '<div class="quota-item"><div class="quota-top"><span class="quota-label">' + label.icon + ' ' + label.name + ' ' + totalHint + (isBlocked ? '<span style="color:#f87171;font-size:12px;font-weight:700">⛔ 已用尽</span>' : '') + '</span><span class="quota-remaining ' + c.text + '">' + remainingText + '</span></div><div class="progress-track"><div class="progress-fill ' + c.fill + '" style="width:' + Math.min(pct,100) + '%"></div></div><div class="quota-footer"><span class="quota-pct ' + c.text + '">' + pct.toFixed(1) + '% 已用</span><span class="quota-refresh">' + (isBlocked ? '🔄 ' + (info.refresh_at || '') + ' 恢复' : '🔄 ' + (info.refresh_at || '') + ' 刷新') + '</span></div></div>';
+        }
+        return { html, blockExhausted, blockRecovery };
+    }
+
     const q = s.quotas || {};
-    const quotaLabels = { '5h': {name:'每5小时',icon:'⚡'}, 'weekly': {name:'每周',icon:'📅'}, 'monthly': {name:'每订阅月',icon:'📆'} };
-    const anyExhausted = Object.values(q).some(v => v.used_pct >= 100);
-    const worstPct = Math.max(...Object.values(q).map(v => v.used_pct || 0));
+    const afq = s.afp_quotas || {};
+    const hasAfp = Object.keys(afq).length > 0;
+
+    // 各区块独立判断是否用尽
+    const tokenResult = Object.keys(q).length > 0 ? renderQuotaBlock(q, quotaLabels, '') : null;
+    const afpResult = hasAfp ? renderQuotaBlock(afq, afpLabels, 'AFP') : null;
+
+    // 综合最差状态（仅用于头部徽章）
+    const allPcts = [...Object.values(q).map(v => v.used_pct || 0), ...Object.values(afq).map(v => v.used_pct || 0)];
+    const worstPct = allPcts.length ? Math.max(...allPcts) : 0;
+    const anyExhausted = allPcts.some(v => v >= 100);
     const badge = anyExhausted ? getStatusBadge(100) : getStatusBadge(worstPct);
 
-    let recoveryTime = '';
-    for (const [key, info] of Object.entries(q)) {
-        if (info.used_pct >= 100 && info.refresh_at && (!recoveryTime || info.refresh_at < recoveryTime)) {
-            recoveryTime = info.refresh_at;
+    // Token 配额区（气泡风格）
+    let quotaHtml = '';
+    if (tokenResult) {
+        if (hasAfp) {
+            quotaHtml += '<div style="margin:6px 8px 0;padding:10px 14px;background:rgba(30,41,59,0.5);border-radius:10px;border:1px solid rgba(51,65,85,0.5);position:relative">';
+            if (tokenResult.blockExhausted && tokenResult.blockRecovery) {
+                quotaHtml += '<div style="position:absolute;inset:0;background:rgba(220,38,38,0.08);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2"><span style="color:#f87171;font-size:14px;font-weight:700">额度已用尽</span><span style="color:#fca5a5;font-size:12px">恢复 ' + tokenResult.blockRecovery + '</span></div>';
+            }
+            quotaHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(51,65,85,0.3)"><span style="font-size:13px;font-weight:600;color:#e2e8f0">🔤 Token 配额</span>' + (s.cost ? '<span style="font-size:12px;color:#60a5fa">' + s.cost + '元/月</span>' : '') + '</div>';
+            quotaHtml += tokenResult.html;
+            quotaHtml += '</div>';
+        } else {
+            quotaHtml += tokenResult.html;
         }
     }
 
-    let quotaHtml = '';
-    for (const [key, info] of Object.entries(q)) {
-        const label = quotaLabels[key] || {name:key,icon:'📊'};
-        const pct = info.used_pct || 0;
-        const hasTotal = info.total > 0;
-        const remaining = hasTotal ? (info.total - Math.round(info.total * pct / 100)) : 0;
-        const c = getColorClass(pct);
-        const isBlocked = pct >= 100;
-        const totalHint = hasTotal ? '<span class="quota-total-hint">(总量 ' + info.total.toLocaleString() + ')</span>' : '';
-        const remainingText = hasTotal ? '剩余 ' + remaining.toLocaleString() : (100-pct).toFixed(1) + '% 可用';
-        quotaHtml += '<div class="quota-item"><div class="quota-top"><span class="quota-label">' + label.icon + ' ' + label.name + ' ' + totalHint + (isBlocked ? '<span style="color:#f87171;font-size:12px;font-weight:700">⛔ 已用尽</span>' : '') + '</span><span class="quota-remaining ' + c.text + '">' + remainingText + '</span></div><div class="progress-track"><div class="progress-fill ' + c.fill + '" style="width:' + Math.min(pct,100) + '%"></div></div><div class="quota-footer"><span class="quota-pct ' + c.text + '">' + pct.toFixed(1) + '% 已用</span><span class="quota-refresh">' + (isBlocked ? '🔄 ' + (info.refresh_at || '') + ' 恢复' : '🔄 ' + (info.refresh_at || '') + ' 刷新') + '</span></div></div>';
+    // AFP 配额区（气泡风格，独立遮罩）
+    if (hasAfp && afpResult) {
+        quotaHtml += '<div style="margin:6px 8px 0;padding:10px 14px;background:rgba(30,41,59,0.5);border-radius:10px;border:1px solid rgba(51,65,85,0.5);position:relative">';
+        if (afpResult.blockExhausted && afpResult.blockRecovery) {
+            quotaHtml += '<div style="position:absolute;inset:0;background:rgba(220,38,38,0.08);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2"><span style="color:#f87171;font-size:14px;font-weight:700">额度已用尽</span><span style="color:#fca5a5;font-size:12px">恢复 ' + afpResult.blockRecovery + '</span></div>';
+        }
+        quotaHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(51,65,85,0.3)"><span style="font-size:13px;font-weight:600;color:#e2e8f0">🤖 Agent Plan · AFP 配额</span>' + (s.afp_cost ? '<span style="font-size:12px;color:#60a5fa">' + s.afp_cost + '元/月</span>' : '') + '</div>';
+        quotaHtml += afpResult.html;
+        quotaHtml += '</div>';
     }
 
-    const overlayHtml = anyExhausted && recoveryTime
-        ? '<div class="sub-exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">' + recoveryTime + '</span><span class="countdown" data-recovery="' + recoveryTime + '">计算中...</span></div></div>'
-        : '';
+    // 计划信息：套餐名（价格在气泡内显示）
+    let planInfoParts = [];
+    if (s.plan_type) planInfoParts.push(s.plan_type);
+    if (hasAfp && s.afp_plan_type) planInfoParts.push(s.afp_plan_type);
+    const planInfoStr = planInfoParts.join(' · ');
 
-    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">' + (s.plan_type||'Lite') + ' · ' + (s.cost?s.cost+'元/月':'') + '</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span></span></div><div class="quota-body" style="position:relative">' + quotaHtml + overlayHtml + '</div></div>';
+    const quotaBodyStyle = hasAfp ? 'position:relative;padding:4px 4px' : 'position:relative';
+
+    return '<div class="sub-service"><div class="sub-header"><span>' + name + '</span><span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#64748b">' + planInfoStr + '</span><span class="status-badge ' + badge.cls + '" style="font-size:11px;padding:2px 8px">' + badge.text + '</span></span></div><div class="quota-body" style="' + quotaBodyStyle + '">' + quotaHtml + '</div></div>';
 }
 
 /* 子服务: 传统额度 */
@@ -1189,7 +1433,7 @@ function renderSubTokenPlan(s, name) {
 
 function renderCodingPlan(p) {
     const q = p.quotas || {};
-    const labels = { '5h':{name:'每5小时',icon:'⚡'}, 'weekly':{name:'每周',icon:'📅'}, 'monthly':{name:'每订阅月',icon:'📆'} };
+    const labels = { 'daily':{name:'每日',icon:'📆'}, '5h':{name:'每5小时',icon:'⚡'}, 'weekly':{name:'每周',icon:'📅'}, 'monthly':{name:'每订阅月',icon:'📆'} };
     const isExhausted = Object.values(q).some(v => v.used_pct >= 100);
     const badge = getStatusBadge(isExhausted ? 100 : 0);
     let quotaHtml = '', recoveryTime = '';
@@ -1198,7 +1442,7 @@ function renderCodingPlan(p) {
         const pct = info.used_pct||0;
         const hasTotal = info.total > 0;
         const remaining = hasTotal ? (info.total - Math.round(info.total*pct/100)) : 0;
-        const c = getColorClass(pct), isBlocked = pct>=100;
+        const c = (key === 'monthly') ? getMonthlyColorClass(pct) : getColorClass(pct), isBlocked = pct>=100;
         const totalHint = hasTotal ? '<span class="quota-total-hint">(总量 ' + info.total.toLocaleString() + ')</span>' : '';
         const remainingText = hasTotal ? '剩余 '+remaining.toLocaleString() : (100-pct).toFixed(1)+'% 可用';
         quotaHtml += '<div class="quota-item"><div class="quota-top"><span class="quota-label">' + label.icon + ' ' + label.name + ' ' + totalHint + (isBlocked?'<span style="color:#f87171;font-size:12px;font-weight:700">⛔</span>':'') + '</span><span class="quota-remaining '+c.text+'">' + remainingText + '</span></div><div class="progress-track"><div class="progress-fill '+c.fill+'" style="width:'+Math.min(pct,100)+'%"></div></div><div class="quota-footer"><span class="quota-pct '+c.text+'">'+pct.toFixed(1)+'% 已用</span><span class="quota-refresh">🔄 '+(info.refresh_at||'')+' 刷新</span></div></div>';
@@ -1217,20 +1461,20 @@ function renderCodingPlan(p) {
         planInfo += '<span>📅 ' + (p.valid_from || '') + ' 至 ' + (p.valid_to || '') + '</span>';
     }
     const footerLabel = p.plan_name || (p.plan_type || 'Coding Plan');
-    return '<div class="plan-card"><div class="card-header"><div><div class="title">'+brandIcon(p.platform,18)+(NAMES[p.platform]||p.platform)+'</div><div class="subtitle">'+subPrefix+subtitle+'</div></div><span class="status-badge '+badge.cls+'">'+badge.text+'</span></div><div class="plan-info">'+planInfo+'</div><div class="quota-body" style="position:relative">'+quotaHtml+(isExhausted&&recoveryTime?'<div class="exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">'+recoveryTime+'</span><span class="countdown" data-recovery="'+recoveryTime+'">计算中...</span></div></div>':'')+'</div><div class="card-footer"><span>'+footerLabel+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div></div>';
+    return '<div class="plan-card"><div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="' + p.platform + '">'+brandIcon(p.platform,18)+(NAMES[p.platform]||p.platform)+'</div><div class="subtitle">'+subPrefix+subtitle+'</div></div><span class="status-badge '+badge.cls+'">'+badge.text+'</span></div><div class="plan-info">'+planInfo+'</div><div class="quota-body" style="position:relative">'+quotaHtml+(isExhausted&&recoveryTime?'<div class="exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">'+recoveryTime+'</span><span class="countdown" data-recovery="'+recoveryTime+'">计算中...</span></div></div>':'')+'</div><div class="card-footer"><span>'+footerLabel+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div></div>';
 }
 
 function renderTokenPlan(p) {
     const usedPct = 100-(p.remaining_pct||0), c=getColorClass(usedPct), badge=getStatusBadge(usedPct);
     const total=p.total_tokens||0, used=p.input_tokens||0, remaining=p.output_tokens||0;
-    return '<div class="plan-card"><div class="card-header"><div><div class="title">'+(NAMES[p.platform]||p.platform)+'</div><div class="subtitle">广州 · '+(p.plan_type||'')+'</div></div><span class="status-badge '+badge.cls+'">'+badge.text+'</span></div><div class="plan-info"><span>💰 '+(p.cost?p.cost+'元/月':'-')+'</span><span>⏳ '+(p.remaining_days?p.remaining_days+'天剩余':'')+'</span><span>📅 '+(p.valid_from||'')+' 至 '+(p.valid_to||'')+'</span></div><div class="tokenplan-body"><div class="quota-hero"><div class="remaining-label">剩余额度</div><div class="remaining-value '+c.text+'">'+fmt(remaining)+'</div><div class="total-hint">套餐额度 '+fmt(total)+' · 已使用 '+fmt(used)+'</div></div><div class="progress-section"><div class="progress-track"><div class="progress-fill '+c.fill+'" style="width:'+usedPct.toFixed(1)+'%"></div></div><div class="progress-labels"><span class="'+c.text+'">已用 '+usedPct.toFixed(1)+'%</span><span class="'+c.text+'">剩余 '+(p.remaining_pct||0).toFixed(1)+'%</span></div></div><div class="detail-grid"><div class="detail-item"><div class="label">套餐额度</div><div class="val blue">'+fmt(total)+'</div></div><div class="detail-item"><div class="label">已使用</div><div class="val '+c.text+'">'+fmt(used)+'</div></div><div class="detail-item"><div class="label">剩余额度</div><div class="val '+c.text+'">'+fmt(remaining)+'</div></div><div class="detail-item"><div class="label">剩余比例</div><div class="val '+c.text+'">'+(p.remaining_pct||0).toFixed(1)+'%</div></div></div></div><div class="card-footer"><span>'+(p.plan_type||p.platform)+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div>'+(p.remaining_pct!==undefined&&p.remaining_pct<=0?'<div class="exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">'+(p.valid_to||'-')+'</span><span class="countdown" data-recovery="'+(p.valid_to||'')+'">计算中...</span></div></div>':'')+'</div>';
+    return '<div class="plan-card"><div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="' + p.platform + '">'+(NAMES[p.platform]||p.platform)+'</div><div class="subtitle">广州 · '+(p.plan_type||'')+'</div></div><span class="status-badge '+badge.cls+'">'+badge.text+'</span></div><div class="plan-info"><span>💰 '+(p.cost?p.cost+'元/月':'-')+'</span><span>⏳ '+(p.remaining_days?p.remaining_days+'天剩余':'')+'</span><span>📅 '+(p.valid_from||'')+' 至 '+(p.valid_to||'')+'</span></div><div class="tokenplan-body"><div class="quota-hero"><div class="remaining-label">剩余额度</div><div class="remaining-value '+c.text+'">'+fmt(remaining)+'</div><div class="total-hint">套餐额度 '+fmt(total)+' · 已使用 '+fmt(used)+'</div></div><div class="progress-section"><div class="progress-track"><div class="progress-fill '+c.fill+'" style="width:'+usedPct.toFixed(1)+'%"></div></div><div class="progress-labels"><span class="'+c.text+'">已用 '+usedPct.toFixed(1)+'%</span><span class="'+c.text+'">剩余 '+(p.remaining_pct||0).toFixed(1)+'%</span></div></div><div class="detail-grid"><div class="detail-item"><div class="label">套餐额度</div><div class="val blue">'+fmt(total)+'</div></div><div class="detail-item"><div class="label">已使用</div><div class="val '+c.text+'">'+fmt(used)+'</div></div><div class="detail-item"><div class="label">剩余额度</div><div class="val '+c.text+'">'+fmt(remaining)+'</div></div><div class="detail-item"><div class="label">剩余比例</div><div class="val '+c.text+'">'+(p.remaining_pct||0).toFixed(1)+'%</div></div></div></div><div class="card-footer"><span>'+(p.plan_type||p.platform)+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div>'+(p.remaining_pct!==undefined&&p.remaining_pct<=0?'<div class="exhausted-overlay"><div class="exhausted-text">额度已用尽</div><div class="exhausted-recovery"><span>恢复时间</span><span class="time">'+(p.valid_to||'-')+'</span><span class="countdown" data-recovery="'+(p.valid_to||'')+'">计算中...</span></div></div>':'')+'</div>';
 }
 
 function renderFallback(p) {
     if (p.platform === 'volcano' || p.platform === 'volcano_ark') return renderVolcanoCard(p);
     if (p.platform === 'xiaomi') return renderXiaomiCard(p);
     if (p.platform === 'deepseek') return renderDeepSeekCard(p);
-    return '<div class="plan-card"><div class="card-header"><div><div class="title">'+(NAMES[p.platform]||p.platform)+'</div></div><span class="status-badge badge-available">'+(p.source||'unknown')+'</span></div><div class="tokenplan-body"><div class="detail-grid"><div class="detail-item"><div class="label">总量</div><div class="val">'+fmt(p.total_tokens)+'</div></div><div class="detail-item"><div class="label">输入</div><div class="val blue">'+fmt(p.input_tokens)+'</div></div><div class="detail-item"><div class="label">输出</div><div class="val green">'+fmt(p.output_tokens)+'</div></div><div class="detail-item"><div class="label">剩余</div><div class="val">'+(p.remaining||'-')+'</div></div></div></div><div class="card-footer"><span>'+(p.source||'unknown')+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div></div>';
+    return '<div class="plan-card"><div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="' + p.platform + '">'+(NAMES[p.platform]||p.platform)+'</div></div><span class="status-badge badge-available">'+(p.source||'unknown')+'</span></div><div class="tokenplan-body"><div class="detail-grid"><div class="detail-item"><div class="label">总量</div><div class="val">'+fmt(p.total_tokens)+'</div></div><div class="detail-item"><div class="label">输入</div><div class="val blue">'+fmt(p.input_tokens)+'</div></div><div class="detail-item"><div class="label">输出</div><div class="val green">'+fmt(p.output_tokens)+'</div></div><div class="detail-item"><div class="label">剩余</div><div class="val">'+(p.remaining||'-')+'</div></div></div></div><div class="card-footer"><span>'+(p.source||'unknown')+'</span><span>'+(p.last_updated?new Date(p.last_updated).toLocaleTimeString():'-')+'</span></div></div>';
 }
 
 function renderVolcanoCard(p) {
@@ -1254,7 +1498,7 @@ function renderVolcanoCard(p) {
         usageHtml = '<div class="detail-grid" style="margin-top:12px"><div class="detail-item"><div class="label">Token总量</div><div class="val">' + totalTokens.toLocaleString() + '</div></div><div class="detail-item"><div class="label">输入Token</div><div class="val blue">' + inputTokens.toLocaleString() + '</div></div><div class="detail-item"><div class="label">输出Token</div><div class="val green">' + outputTokens.toLocaleString() + '</div></div></div>';
     }
 
-    return '<div class="plan-card" style="position:relative"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('volcano', 20) + '火山方舟</div><div class="subtitle">' + planName + ' · ' + (planType === 'pay_as_you_go' ? '按量付费' : planType) + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div class="tokenplan-body"><div style="text-align:center;padding:16px 0"><div style="font-size:12px;color:#64748b;margin-bottom:4px">可用余额</div><div style="font-size:36px;font-weight:800" class="' + c.text + '">¥' + available.toFixed(2) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:8px">现金 ¥' + cash.toFixed(2) + (credit > 0 ? ' · 信控 ¥' + credit.toFixed(2) : '') + (frozen > 0 ? ' · 冻结 ¥' + frozen.toFixed(2) : '') + (arrears > 0 ? ' · <span style="color:#ef4444">欠费 ¥' + arrears.toFixed(2) + '</span>' : '') + '</div></div>' + usageHtml + '</div><div class="card-footer"><span>火山方舟</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div>' + (isExhausted ? '<div class="exhausted-overlay"><div class="exhausted-text">余额不足</div><div class="exhausted-recovery"><span style="color:#fca5a5">请及时充值</span></div></div>' : '') + '</div>';
+    return '<div class="plan-card" style="position:relative"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="volcano">' + brandIcon('volcano', 20) + '火山方舟</div><div class="subtitle">' + planName + ' · ' + (planType === 'pay_as_you_go' ? '按量付费' : planType) + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div class="tokenplan-body"><div style="text-align:center;padding:16px 0"><div style="font-size:12px;color:#64748b;margin-bottom:4px">可用余额</div><div style="font-size:36px;font-weight:800" class="' + c.text + '">¥' + available.toFixed(2) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:8px">现金 ¥' + cash.toFixed(2) + (credit > 0 ? ' · 信控 ¥' + credit.toFixed(2) : '') + (frozen > 0 ? ' · 冻结 ¥' + frozen.toFixed(2) : '') + (arrears > 0 ? ' · <span style="color:#ef4444">欠费 ¥' + arrears.toFixed(2) + '</span>' : '') + '</div></div>' + usageHtml + '</div><div class="card-footer"><span>火山方舟</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div>' + (isExhausted ? '<div class="exhausted-overlay"><div class="exhausted-text">余额不足</div><div class="exhausted-recovery"><span style="color:#fca5a5">请及时充值</span></div></div>' : '') + '</div>';
 }
 
 function renderXiaomiCard(p) {
@@ -1302,7 +1546,7 @@ function renderXiaomiCard(p) {
             '</div>';
     }
 
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('xiaomi', 20) + 'MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + balanceHtml + planHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="xiaomi">' + brandIcon('xiaomi', 20) + 'MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + balanceHtml + planHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 function renderDeepSeekCard(p) {
@@ -1311,8 +1555,8 @@ function renderDeepSeekCard(p) {
     const balance = p.balance || 0;
     const modelUsages = p.model_usages || [];
     
-    // 亿单位转换
-    const totalYi = totalTokens >= 1e8 ? (totalTokens / 1e8).toFixed(2) + '亿' : '';
+    // 月累计Token紧凑显示（万/十万/百万/千万/亿）
+    const totalCompact = totalTokens > 0 ? fmt(totalTokens) : '0';
     
     let modelHtml = '';
     for (const mu of modelUsages) {
@@ -1354,16 +1598,101 @@ function renderDeepSeekCard(p) {
             ? '<div style="text-align:center;min-width:120px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">充值余额</div><div style="font-size:26px;font-weight:800;color:#34d399">¥' + balance.toFixed(2) + '</div></div>'
             : '') +
         '<div style="text-align:center;min-width:120px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">本月消费</div><div style="font-size:26px;font-weight:800;color:#f87171">¥' + monthlyCost.toFixed(2) + '</div></div>' +
-        '<div style="text-align:center;min-width:140px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">月累计Token</div><div style="font-size:24px;font-weight:800;color:#e2e8f0">' + totalTokens.toLocaleString() + '</div>' + (totalYi ? '<div style="font-size:11px;color:#64748b;margin-top:1px">≈ ' + totalYi + '</div>' : '') + '</div>' +
+        '<div style="text-align:center;min-width:140px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">月累计Token</div><div style="font-size:24px;font-weight:800;color:#e2e8f0;line-height:1.1">' + totalCompact + '</div><div style="font-size:11px;color:#64748b;margin-top:3px">(' + totalTokens.toLocaleString() + ')</div></div>' +
         '</div>';
 
     const badge = p.balance > 0 ? getStatusBadge(30) : getStatusBadge(monthlyCost > 0 ? 70 : 30);
     
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('deepseek', 20) + 'DeepSeek</div><div class="subtitle">按量计费</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + balanceHtml + '</div></div><div style="padding:0 16px 12px">' + modelHtml + '</div><div class="card-footer"><span>DeepSeek Token用量</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="deepseek">' + brandIcon('deepseek', 20) + 'DeepSeek</div><div class="subtitle">按量计费</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + balanceHtml + '</div></div><div style="padding:0 16px 12px">' + modelHtml + '</div><div class="card-footer"><span>DeepSeek Token用量</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 function renderMiniMaxCard(p) {
-    const planName = p.plan_name || 'MiniMax 网关';
+    // 中转站网关 → 独立卡片
+    if (p.platform === 'minimax_gateway') {
+        return renderMiniMaxGatewayCard(p);
+    }
+    // 官方 Token Plan → 独立卡片
+    return renderMiniMaxOfficialCard(p);
+}
+
+/* 官方 Token Plan 用量卡片 */
+function renderMiniMaxOfficialCard(p) {
+    const planName = p.plan_name || 'MiniMax';
+    const totalTokens = p.total_tokens || 0;
+    const modelUsages = p.model_usages || [];
+    const remainingDays = p.remaining_days || 0;
+    const accountName = p.account_name || '';
+    const quotas = p.quotas || {};
+
+    const totalCompact = totalTokens > 0 ? formatCompact(totalTokens) : '0';
+    const statsHtml = '<div style="padding:8px 0 4px;display:flex;justify-content:space-evenly;align-items:center">' +
+        '<div style="text-align:center;min-width:140px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">14天总用量</div><div style="font-size:24px;font-weight:800;color:#e2e8f0;line-height:1.1">' + totalCompact + '</div><div style="font-size:11px;color:#64748b;margin-top:3px">(' + totalTokens.toLocaleString() + ' tokens)</div></div>' +
+        (remainingDays > 0 ? '<div style="text-align:center;min-width:120px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">套餐到期</div><div style="font-size:26px;font-weight:800;color:#34d399">' + remainingDays + '</div><div style="font-size:11px;color:#64748b;margin-top:3px">天 (' + (p.valid_to||'') + ')</div></div>' : '') +
+        '</div>';
+
+    // 配额进度条（5h + weekly）
+    let quotaHtml = '';
+    const q5h = quotas['5h'] || {};
+    const qWeekly = quotas['weekly'] || {};
+    if (q5h.used_pct !== undefined || qWeekly.used_pct !== undefined) {
+        const hPct = q5h.used_pct || 0;
+        const wPct = qWeekly.used_pct || 0;
+        const cH = getColorClass(hPct), cW = getColorClass(wPct);
+        quotaHtml += '<div class="quota-item">' +
+            '<div class="quota-top"><span class="quota-label">⚡ 5h 限额</span><span class="quota-remaining ' + cH.text + '">' + (100-hPct).toFixed(0) + '% 可用</span></div>' +
+            '<div class="progress-track"><div class="progress-fill ' + cH.fill + '" style="width:' + Math.min(hPct,100) + '%"></div></div>' +
+            '<div class="quota-footer"><span class="quota-pct ' + cH.text + '">' + hPct.toFixed(1) + '% 已用</span><span class="quota-refresh">' + (q5h.refresh_at ? '🔄 ' + q5h.refresh_at + ' 重置' : '') + '</span></div>' +
+        '</div>';
+        quotaHtml += '<div class="quota-item">' +
+            '<div class="quota-top"><span class="quota-label">📅 周限额</span><span class="quota-remaining ' + cW.text + '">' + (100-wPct).toFixed(0) + '% 可用</span></div>' +
+            '<div class="progress-track"><div class="progress-fill ' + cW.fill + '" style="width:' + Math.min(wPct,100) + '%"></div></div>' +
+            '<div class="quota-footer"><span class="quota-pct ' + cW.text + '">' + wPct.toFixed(1) + '% 已用</span><span class="quota-refresh">' + (qWeekly.refresh_at ? '🔄 ' + qWeekly.refresh_at + ' 重置' : '') + '</span></div>' +
+        '</div>';
+    }
+
+    let modelHtml = '';
+    for (const mu of modelUsages) {
+        const cacheHit = mu.cache_read_token || 0;
+        const inputNoCache = mu.input_token || 0;
+        const output = mu.output_token || 0;
+        const totalModel = mu.total_token || (cacheHit + inputNoCache + output);
+        const cacheRate = (cacheHit + inputNoCache) > 0 ? (cacheHit / (cacheHit + inputNoCache) * 100).toFixed(1) : '0';
+
+        modelHtml += '<div style="margin-top:10px;padding:12px 14px;background:rgba(30,41,59,0.5);border-radius:10px;border:1px solid rgba(51,65,85,0.5)">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(51,65,85,0.5)">' +
+                '<span style="font-size:15px;font-weight:600;color:#e2e8f0">' + escHtml(mu.model) + '</span>' +
+                '<span style="font-size:12px;color:#60a5fa">缓存命中率 ' + cacheRate + '%</span>' +
+            '</div>' +
+            (totalModel === 0
+                ? '<div style="padding:12px 0;text-align:center;color:#64748b;font-size:13px">暂无用量</div>'
+                : '<div style="display:flex;gap:8px;font-size:13px">' +
+                '<div style="flex:1;background:rgba(52,211,153,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">缓存命中</div><div style="color:#34d399;font-weight:700;font-size:14px;margin-top:3px">' + cacheHit.toLocaleString() + '</div></div>' +
+                '<div style="flex:1;background:rgba(251,191,36,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">输入Token</div><div style="color:#fbbf24;font-weight:700;font-size:14px;margin-top:3px">' + inputNoCache.toLocaleString() + '</div></div>' +
+                '<div style="flex:1;background:rgba(96,165,250,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">输出Token</div><div style="color:#60a5fa;font-weight:700;font-size:14px;margin-top:3px">' + output.toLocaleString() + '</div></div>' +
+                '<div style="flex:1;background:rgba(167,139,250,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px;white-space:nowrap">合计</div><div style="color:#a78bfa;font-weight:700;font-size:14px;margin-top:3px">' + totalModel.toLocaleString() + '</div></div>' +
+                '</div>' +
+                '<div style="margin-top:8px;font-size:11px;color:#94a3b8;text-align:center">日期：' + (mu.date || '-') + '</div>'
+            ) +
+            '</div>';
+    }
+
+    if (!modelHtml && !quotaHtml) {
+        modelHtml = '<div style="padding:24px;text-align:center;color:#64748b;font-size:13px">暂无用量数据</div>';
+    }
+
+    const maxPct = Math.max(q5h.used_pct || 0, qWeekly.used_pct || 0);
+    const badge = remainingDays > 0 ? getStatusBadge(maxPct) : getStatusBadge(70);
+
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0">' +
+        '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="minimax">' + brandIcon('minimax', 20) + 'MiniMax</div><div class="subtitle">' + escHtml(planName) + (accountName ? ' · ' + escHtml(accountName) : '') + (remainingDays ? ' · ' + remainingDays + '天到期' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
+        '<div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + statsHtml + '</div></div>' +
+        '<div style="padding:0 16px 12px">' + quotaHtml + modelHtml + '</div>' +
+        '<div class="card-footer"><span>' + escHtml(planName) + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+}
+
+/* 中转站网关卡片 */
+function renderMiniMaxGatewayCard(p) {
+    const planName = p.plan_name || '中转站';
     const weekly = (p.quotas && p.quotas.weekly) || {};
     const hourly = (p.quotas && p.quotas['5h']) || {};
     const wPct = weekly.used_pct || 0;
@@ -1376,7 +1705,6 @@ function renderMiniMaxCard(p) {
     const hTotal = hourly.total || hourly.limit || 0;
     const hUsed = hourly.used || 0;
 
-    // 进度条
     const quotaHtml =
         '<div class="quota-item">' +
             '<div class="quota-top"><span class="quota-label">⚡ 5 小时额度</span><span class="quota-remaining ' + cH.text + '">' + hUsed.toLocaleString() + ' / ' + hTotal.toLocaleString() + '</span></div>' +
@@ -1386,11 +1714,11 @@ function renderMiniMaxCard(p) {
         '<div class="quota-item">' +
             '<div class="quota-top"><span class="quota-label">📅 本周额度</span><span class="quota-remaining ' + cW.text + '">' + wUsed.toLocaleString() + ' / ' + wTotal.toLocaleString() + '</span></div>' +
             '<div class="progress-track"><div class="progress-fill ' + cW.fill + '" style="width:' + wPct + '%"></div></div>' +
-            '<div class="quota-footer"><span class="quota-pct ' + cW.text + '">' + wPct + '% 已用</span><span class="quota-refresh">剩余 ' + (wTotal - wUsed).toLocaleString() + ' 次 · 总量 ' + wTotal.toLocaleString() + '</span></div>' +
+            '<div class="quota-footer"><span class="quota-pct ' + cW.text + '">' + wPct + '% 已用</span><span class="quota-refresh">剩余 ' + (wTotal - wUsed).toLocaleString() + ' 次</span></div>' +
         '</div>';
 
     return '<div class="plan-card" style="flex:0 0 100%;min-width:0">' +
-        '<div class="card-header"><div><div class="title" style="font-size:22px">' + brandIcon('minimax', 20) + 'MiniMax</div><div class="subtitle">' + escHtml(planName) + (p.remaining_days ? ' · ' + p.remaining_days + '天到期' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
+        '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="minimax_gateway">' + brandIcon('minimax', 20) + 'MiniMax中转</div><div class="subtitle">' + escHtml(planName) + (p.remaining_days ? ' · ' + p.remaining_days + '天到期' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
         '<div class="quota-body" style="position:relative">' + quotaHtml + '</div>' +
         '<div class="card-footer"><span>' + escHtml(planName) + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
@@ -1401,6 +1729,49 @@ function formatCompact(n) {
     if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
     if (n >= 1e4) return (n/1e3).toFixed(0) + 'k';
     return n.toLocaleString();
+}
+
+/* GPT 中转站卡片 */
+function renderGptGatewayCard(p) {
+    const balance = p.balance || 0;
+    const totalRequests = p.total_requests || 0;
+    const recentCost = p.monthly_cost || 0;
+    const modelUsages = p.model_usages || [];
+    const accountName = p.account_name || '';
+
+    const statsHtml = '<div style="padding:8px 0 4px;display:flex;justify-content:space-evenly;align-items:center">' +
+        '<div style="text-align:center;min-width:120px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">账户余额</div><div style="font-size:26px;font-weight:800;color:#34d399">$' + balance.toFixed(2) + '</div></div>' +
+        '<div style="text-align:center;min-width:120px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">总请求数</div><div style="font-size:26px;font-weight:800;color:#e2e8f0">' + totalRequests.toLocaleString() + '</div></div>' +
+        '<div style="text-align:center;min-width:120px"><div style="font-size:13px;color:#94a3b8;margin-bottom:2px">近期消费</div><div style="font-size:26px;font-weight:800;color:#f87171">$' + recentCost.toFixed(3) + '</div></div>' +
+        '</div>';
+
+    let modelHtml = '';
+    for (const mu of modelUsages) {
+        const totalTok = mu.total_token || 0;
+        modelHtml += '<div style="margin-top:10px;padding:12px 14px;background:rgba(30,41,59,0.5);border-radius:10px;border:1px solid rgba(51,65,85,0.5)">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(51,65,85,0.5)">' +
+                '<span style="font-size:15px;font-weight:600;color:#e2e8f0">' + escHtml(mu.model) + '</span>' +
+                '<span style="font-size:12px;color:#a78bfa">' + mu.requests + ' 次请求</span>' +
+            '</div>' +
+            '<div style="display:flex;gap:8px;font-size:13px">' +
+            '<div style="flex:1;background:rgba(251,191,36,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px">输入Token</div><div style="color:#fbbf24;font-weight:700;font-size:14px;margin-top:3px">' + mu.input_token.toLocaleString() + '</div></div>' +
+            '<div style="flex:1;background:rgba(96,165,250,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px">输出Token</div><div style="color:#60a5fa;font-weight:700;font-size:14px;margin-top:3px">' + mu.output_token.toLocaleString() + '</div></div>' +
+            '<div style="flex:1;background:rgba(167,139,250,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px">合计</div><div style="color:#a78bfa;font-weight:700;font-size:14px;margin-top:3px">' + totalTok.toLocaleString() + '</div></div>' +
+            '<div style="flex:1;background:rgba(248,113,113,0.08);border-radius:6px;padding:8px 4px;text-align:center"><div style="color:#64748b;font-size:12px">费用</div><div style="color:#f87171;font-weight:700;font-size:14px;margin-top:3px">$' + mu.cost.toFixed(3) + '</div></div>' +
+            '</div></div>';
+    }
+
+    if (!modelHtml) {
+        modelHtml = '<div style="padding:24px;text-align:center;color:#64748b;font-size:13px">暂无用量数据</div>';
+    }
+
+    const badge = balance > 10 ? getStatusBadge(30) : balance > 0 ? getStatusBadge(70) : getStatusBadge(100);
+
+    return '<div class="plan-card" style="flex:0 0 100%;min-width:0">' +
+        '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="gpt_gateway">🔌 GPT中转</div><div class="subtitle">按量付费' + (accountName ? ' · ' + escHtml(accountName) : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
+        '<div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + statsHtml + '</div></div>' +
+        '<div style="padding:0 16px 12px">' + modelHtml + '</div>' +
+        '<div class="card-footer"><span>GPT API Gateway</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 function updateCountdowns() {
@@ -1460,29 +1831,54 @@ function onPlatformChange() {
 }
 
 async function loadSortWeights() {
+    const container = document.getElementById('sort-weight-list');
+    if (!container) return;
+    // 根因1：原实现单次请求失败即静默空白。改为最多重试 2 次，失败给出明确提示而非空白。
+    let credsResp = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+            credsResp = await authFetch('/api/admin/credentials').then(r => r.json());
+            break;
+        } catch (e) {
+            if (attempt >= 2) {
+                container.innerHTML = '<span style="font-size:12px;color:#f87171">排序列表加载失败，请刷新管理页重试</span>';
+                toast('排序列表加载失败', 'error');
+                return;
+            }
+            await new Promise(r => setTimeout(r, 1200));
+        }
+    }
+    if (!credsResp) return;
+
     try {
-        const [credsResp] = await Promise.all([
-            authFetch('/api/admin/credentials').then(r=>r.json())
-        ]);
-        const container = document.getElementById('sort-weight-list');
-        if (!container) return;
-        
         const activePlatforms = [...new Set(credsResp.map(c => c.platform))];
-        if (!activePlatforms.length) {
+        // minimax 的 api_key 是中转站，在排序里显示为 minimax_gateway
+        const expandedPlatforms = [];
+        const seen = new Set();
+        for (const p of activePlatforms) {
+            if (p === 'minimax') {
+                if (!seen.has('minimax')) { expandedPlatforms.push('minimax'); seen.add('minimax'); }
+                if (!seen.has('minimax_gateway')) { expandedPlatforms.push('minimax_gateway'); seen.add('minimax_gateway'); }
+            } else {
+                if (!seen.has(p)) { expandedPlatforms.push(p); seen.add(p); }
+            }
+        }
+        const finalPlatforms = expandedPlatforms;
+        if (!finalPlatforms.length) {
             container.innerHTML = '<span style="font-size:12px;color:#4b5563">暂无有效平台</span>';
             return;
         }
         
         // 从 localStorage 读保存的顺序，没有则用原来的
         const saved = JSON.parse(localStorage.getItem('platform_order') || '[]');
-        const ordered = saved.filter(p => activePlatforms.includes(p));
-        for (const p of activePlatforms) {
+        const ordered = saved.filter(p => finalPlatforms.includes(p));
+        for (const p of finalPlatforms) {
             if (!ordered.includes(p)) ordered.push(p);
         }
         
         container.innerHTML = ordered.map(p => {
             const name = NAMES[p] || p;
-            const icon = {deepseek:'🔮',xiaomi:'🧸',tencent:'🔷',volcano:'🌋'}[p] || '📊';
+            const icon = {deepseek:'🔮',xiaomi:'🧸',tencent:'🔷',volcano:'🌋',minimax:'🤖',minimax_gateway:'🔄',gpt_gateway:'🔌'}[p] || '📊';
             return '<div draggable="true" data-platform="' + p + '" id="drag-' + p + '" ' +
                 'style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#0d1117;border:1px solid #1e293b;border-radius:8px;cursor:grab;user-select:none;-webkit-user-select:none;font-size:13px;color:#e2e8f0">' +
                 '<span style="font-size:16px;line-height:1;cursor:grab">⠿</span>' +
@@ -1560,6 +1956,7 @@ async function loadSortMode() {
         const data = await resp.json();
         const toggle = document.getElementById('sort_mode-toggle');
         const label = document.getElementById('sort_mode-label');
+        currentSortMode = data.mode === 'realtime' ? 'realtime' : 'weight';
         if (toggle && label) {
             const isRealtime = data.mode === 'realtime';
             toggle.checked = isRealtime;
@@ -1582,6 +1979,7 @@ async function toggleSortMode() {
             const isRealtime = mode === 'realtime';
             label.textContent = isRealtime ? '实时' : '权重';
             label.className = isRealtime ? 'on' : 'off';
+            currentSortMode = mode; // 同步全局真相源，监控页立即按新模式重排
             toast(result.message, 'success');
             lastDataHash = '';
             load();
@@ -1631,28 +2029,42 @@ async function loadCredentials() {
     try {
         const resp = await authFetch('/api/admin/credentials');
         const creds = await resp.json();
-        const tbody = document.getElementById('cred-tbody');
-        if (!creds.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#4b5563">暂无凭证，请添加</td></tr>'; return; }
-        tbody.innerHTML = creds.map(c => {
-            const p = escJs(c.platform);
-            return '<tr id="cred-row-'+p+'">' +
-                '<td><strong>'+escHtml(NAMES[c.platform]||c.platform)+'</strong></td>' +
-                '<td><span class="cred-type-badge type-'+escHtml(c.credential_type)+'">'+(c.credential_type==='cookie'?'🍪 Cookie':'🔑 API Key')+'</span></td>' +
-                '<td>'+escHtml(c.note||'-')+'</td>' +
-                '<td>'+escHtml(c.updated_at||'-')+'</td>' +
-                '<td><div class="cred-actions">' +
-                    '<button class="btn btn-outline" onclick="checkCredential(\''+p+'\')">🔍 检查</button>' +
-                    '<button class="btn btn-primary" onclick="showUpdateCred(\''+p+'\',\''+escJs(c.credential_type)+'\')">✏️ 更新</button>' +
-                    '<button class="btn btn-danger" onclick="deleteCredential(\''+p+'\')">🗑️</button>' +
-                '</div>' +
-                '<div id="check-result-'+p+'"></div>' +
-                '<div id="update-area-'+p+'" class="cred-update-area">' +
-                    '<textarea id="update-data-'+p+'" placeholder="粘贴新的 Cookie 或凭证数据..."></textarea>' +
-                    '<button class="btn btn-primary" onclick="doUpdateCred(\''+p+'\',\''+escJs(c.credential_type)+'\')">💾 保存</button>' +
-                    '<button class="btn btn-outline" onclick="hideUpdateCred(\''+p+'\')">取消</button>' +
-                '</div></td>' +
-            '</tr>';
-        }).join('');
+        const container = document.getElementById('cred-cards');
+        if (!creds.length) { container.innerHTML = '<div style="text-align:center;color:#4b5563;padding:32px">暂无凭证，请添加</div>'; return; }
+        // 按平台分组
+        const groups = {};
+        const order = [];
+        creds.forEach(c => {
+            if (!groups[c.platform]) { groups[c.platform] = []; order.push(c.platform); }
+            groups[c.platform].push(c);
+        });
+        let html = '';
+        order.forEach(platform => {
+            const items = groups[platform];
+            const name = NAMES[platform] || platform;
+            const icon = {deepseek:'🔮',xiaomi:'🧸',tencent:'🔷',volcano:'🌋',minimax:'🤖'}[platform] || '📊';
+            const p = escJs(platform);
+            html += '<div class="cred-bubble">' +
+                '<div class="cred-bubble-header">' +
+                    '<span class="cred-bubble-icon">'+icon+'</span>' +
+                    '<strong>'+escHtml(name)+'</strong>' +
+                    '<span class="cred-bubble-count">'+items.length+' 凭证</span>' +
+                    '<button class="btn btn-outline" style="margin-left:auto;font-size:12px;padding:4px 10px" onclick="checkCredential(\''+p+'\')">🔍 检查</button>' +
+                '</div>';
+            items.forEach((c, i) => {
+                html += '<div class="cred-bubble-item">' +
+                    '<span class="cred-type-badge type-'+escHtml(c.credential_type)+'">'+(c.credential_type==='cookie'?'🍪 Cookie':'🔑 API Key')+'</span>' +
+                    '<span class="cred-item-note">'+escHtml(c.note||'')+'</span>' +
+                    '<span class="cred-item-time">'+escHtml(c.updated_at||'-')+'</span>' +
+                    '<div class="cred-actions">' +
+                        '<button class="btn btn-primary" onclick="showUpdateCred(\''+p+'\',\''+escJs(c.credential_type)+'\')">✏️ 更新</button>' +
+                        '<button class="btn btn-danger" onclick="deleteCredential(\''+p+'\')">🗑️</button>' +
+                    '</div>' +
+                '</div>';
+            });
+            html += '<div id="check-result-'+p+'" class="cred-check-result" style="margin:0 16px 12px"></div></div>';
+        });
+        container.innerHTML = html;
     } catch(e) { console.error(e); }
 }
 
@@ -1697,7 +2109,7 @@ async function checkCredential(platform) {
     const resultEl = document.getElementById('check-result-'+platform);
     resultEl.innerHTML = '<span class="cred-check-loading">⏳ 检查中...</span>';
     try {
-        const resp = await authFetch('/api/admin/check-credential/'+platform, {method:'POST', body:'{}'});
+        const resp = await authFetch('/api/admin/check-credential/'+platform, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
         const result = await resp.json();
         if (result.error && !result.details) {
             resultEl.innerHTML = '<div class="cred-check-result cred-check-fail">❌ '+escHtml(result.error)+'</div>';
@@ -1727,27 +2139,36 @@ async function checkCredential(platform) {
 }
 
 function showUpdateCred(platform, credType) {
-    const area = document.getElementById('update-area-'+platform);
-    const textarea = document.getElementById('update-data-'+platform);
-    if (area) {
-        area.classList.add('active');
-        // 设置placeholder提示
-        if (platformConfigs[platform]) {
-            const cfg = platformConfigs[platform];
-            textarea.placeholder = credType === 'cookie'
-                ? (cfg.cookie_hint || '粘贴新的 Cookie...')
-                : (cfg.api_key_hint || '粘贴新的 API Key...');
-        }
-        textarea.focus();
+    // 先关闭其他已打开的
+    document.querySelectorAll('.cred-update-row').forEach(r => r.remove());
+    // 找到对应平台的卡片中最后一个凭证item
+    const card = document.querySelector('.cred-bubble:has(.cred-bubble-item .btn[onclick*="showUpdateCred(\''+platform+'\',\''+credType+'\')"])');
+    if (!card) return;
+    // 在卡片底部插入更新区域
+    const div = document.createElement('div');
+    div.className = 'cred-update-row';
+    div.id = 'update-row-'+platform;
+    let placeholder = '粘贴新的 Cookie 或凭证数据...';
+    if (platformConfigs[platform]) {
+        const cfg = platformConfigs[platform];
+        placeholder = credType === 'cookie'
+            ? (cfg.cookie_hint || '粘贴新的 Cookie...')
+            : (cfg.api_key_hint || '粘贴新的 API Key...');
     }
+    div.innerHTML = '<div style="padding:12px 20px;border-top:2px solid #3b82f6;background:rgba(59,130,246,0.05)">' +
+        '<textarea id="update-data-'+platform+'" placeholder="'+escHtml(placeholder)+'" ' +
+        'style="width:100%;min-height:80px;font-size:13px;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;resize:vertical;margin-bottom:8px;font-family:Consolas,Fira Code,monospace"></textarea>' +
+        '<div style="display:flex;gap:8px">' +
+        '<button class="btn btn-primary" onclick="doUpdateCred(\''+platform+'\',\''+credType+'\')">💾 保存</button>' +
+        '<button class="btn btn-outline" onclick="hideUpdateCred(\''+platform+'\')">取消</button>' +
+        '</div></div>';
+    card.appendChild(div);
+    setTimeout(() => document.getElementById('update-data-'+platform).focus(), 100);
 }
 
 function hideUpdateCred(platform) {
-    const area = document.getElementById('update-area-'+platform);
-    if (area) {
-        area.classList.remove('active');
-        document.getElementById('update-data-'+platform).value = '';
-    }
+    const row = document.getElementById('update-row-'+platform);
+    if (row) row.remove();
 }
 
 async function doUpdateCred(platform, credType) {
@@ -1898,11 +2319,85 @@ async function refreshNow() {
     if (ico) setTimeout(() => { ico.style.transition = 'none'; ico.style.transform = 'rotate(0deg)'; }, 800);
 }
 
+/* ====== 日志页 ====== */
+let _logOffset = 0, _logLevel = '', _logPlatform = '', _logSearch = '';
+
+async function loadLogs(append=false) {
+    if (!append) { _logOffset = 0; document.getElementById('log-entries').innerHTML = ''; }
+    try {
+        const params = new URLSearchParams({limit:'50', offset:String(_logOffset)});
+        if (_logLevel) params.set('level', _logLevel);
+        if (_logPlatform) params.set('platform', _logPlatform);
+        if (_logSearch) params.set('search', _logSearch);
+        const resp = await authFetch('/api/admin/refresh-log?'+params.toString());
+        const logs = await resp.json();
+        const container = document.getElementById('log-entries');
+        if (!append) container.innerHTML = '';
+        if (!logs.length && !append) {
+            container.innerHTML = '<div style="text-align:center;color:#4b5563;padding:32px">暂无日志</div>';
+            document.getElementById('log-load-more').style.display = 'none';
+            return;
+        }
+        const html = logs.map(l => {
+            const lvl = l.level || 'INFO';
+            const lvlLabel = {INFO:'🟢',WARN:'🟡',ERROR:'🔴'}[lvl] || '';
+            const statusIcon = l.status==='success'?'✅':l.status==='failed'?'❌':'⚠️';
+            const dur = l.duration_ms ? l.duration_ms+'ms' : '';
+            return '<div class="log-entry">' +
+                '<span class="log-entry-time">'+escHtml(l.timestamp_fmt||'-')+'</span>' +
+                '<span class="log-entry-level lvl-'+escHtml(lvl)+'">'+lvlLabel+' '+escHtml(lvl)+'</span>' +
+                '<span class="log-entry-platform">'+escHtml(NAMES[l.platform]||l.platform)+'</span>' +
+                '<span class="log-entry-msg">'+statusIcon+' '+escHtml(l.message||'-')+'</span>' +
+                (dur ? '<span class="log-entry-dur">'+escHtml(dur)+'</span>' : '') +
+                '</div>';
+        }).join('');
+        container.innerHTML += html;
+        _logOffset += logs.length;
+        const moreBtn = document.getElementById('log-load-more');
+        if (logs.length < 50) {
+            moreBtn.style.display = 'none';
+        } else {
+            moreBtn.style.display = '';
+            document.getElementById('log-more-btn').textContent = '加载更多 ('+_logOffset+' 条已加载)';
+        }
+        // 填充平台筛选下拉
+        if (!append) {
+            const sel = document.getElementById('log-platform-filter');
+            if (sel.options.length <= 1) {
+                const platforms = [...new Set(logs.map(l=>l.platform))];
+                platforms.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p; opt.textContent = NAMES[p] || p;
+                    sel.appendChild(opt);
+                });
+            }
+        }
+    } catch(e) { console.error(e); }
+}
+
+function filterLogLevel(level) {
+    _logLevel = level;
+    document.querySelectorAll('.log-lvl').forEach(b => b.classList.remove('active'));
+    const btn = document.querySelector('.log-lvl[data-lvl="'+level+'"]');
+    if (btn) btn.classList.add('active');
+    loadLogs();
+}
+
+// 更新搜索和平台筛选事件
+document.addEventListener('DOMContentLoaded', function() {
+    const platformSel = document.getElementById('log-platform-filter');
+    const searchInput = document.getElementById('log-search');
+    if (platformSel) platformSel.addEventListener('change', function() { _logPlatform = this.value; loadLogs(); });
+    if (searchInput) searchInput.addEventListener('input', function() { _logSearch = this.value; loadLogs(); });
+});
+
+/* keep legacy for admin tab */
 async function loadRefreshLog() {
     try {
         const resp = await authFetch('/api/admin/refresh-log?limit=10');
         const logs = await resp.json();
         const tbody = document.getElementById('log-tbody');
+        if (!tbody) return;
         if (!logs.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#4b5563">暂无刷新记录</td></tr>'; return; }
         tbody.innerHTML = logs.map(l => '<tr><td>'+escHtml(l.timestamp_fmt||'-')+'</td><td>'+escHtml(NAMES[l.platform]||l.platform)+'</td><td class="log-'+escHtml(l.status)+'">'+(l.status==='success'?'✅ 成功':l.status==='failed'?'❌ 失败':'⚠️ 错误')+'</td><td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(l.message||'')+'">'+escHtml(l.message||'-')+'</td></tr>').join('');
     } catch(e) { console.error(e); }
@@ -1912,7 +2407,9 @@ async function clearRefreshLog() {
     try {
         await authFetch('/api/admin/refresh-log', {method:'DELETE'});
         toast('日志已清空', 'success');
-        document.getElementById('log-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;color:#4b5563">暂无刷新记录</td></tr>';
+        const tbody = document.getElementById('log-tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#4b5563">暂无刷新记录</td></tr>';
+        loadLogs();
     } catch(e) { if (e.message !== '未授权') toast('清空失败', 'error'); }
 }
 
@@ -1923,6 +2420,8 @@ document.getElementById('version-tag').textContent = APP_VERSION;
 checkAuthStatus().then(() => {
     // 根据登录状态渲染监控页的隐藏按钮
     lastDataHash = ''; // 强制重新渲染
+    // 启动即拉取服务器 sort_mode，让监控页排序从一开始就与服务器一致，不依赖“是否打开过管理页”（根因2 闭环）
+    if (isLoggedIn) loadSortMode();
 });
 
 load();
