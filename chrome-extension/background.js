@@ -56,9 +56,12 @@ async function apiWithTotp(method, path, body) {
 async function collectPlatform(platform, domain) {
   try {
     let allCookies = [];
-    // 腾讯云分布在多个域
-    const tencentDomains = ['.cloud.tencent.com', '.tencent.com'];
-    const domains = platform === 'tencent' ? tencentDomains : [domain];
+    // 腾讯云和 MiniMax 分布在多个域
+    const multiDomains = {
+      tencent: ['.cloud.tencent.com', '.tencent.com'],
+      minimax: ['.minimaxi.com', 'platform.minimaxi.com'],
+    };
+    const domains = multiDomains[platform] || [domain];
     
     for (const d of domains) {
       const cookies = await chrome.cookies.getAll({ domain: d });
@@ -165,8 +168,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'count_cookies':
       (async () => {
         try {
-          const tencentDomains = ['.cloud.tencent.com', '.tencent.com'];
-          const domains = request.platform === 'tencent' ? tencentDomains : [request.domain];
+          const multiDomains = {
+            tencent: ['.cloud.tencent.com', '.tencent.com'],
+            minimax: ['.minimaxi.com', 'platform.minimaxi.com'],
+          };
+          const domains = multiDomains[request.platform] || [request.domain];
           let total = 0;
           for (const d of domains) {
             const c = await chrome.cookies.getAll({ domain: d });
@@ -180,8 +186,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'has_auth_cookies':
       (async () => {
         try {
-          const tencentDomains = ['.cloud.tencent.com', '.tencent.com'];
-          const domains = request.platform === 'tencent' ? tencentDomains : [request.domain];
+          const multiDomains = {
+            tencent: ['.cloud.tencent.com', '.tencent.com'],
+            minimax: ['.minimaxi.com', 'platform.minimaxi.com'],
+          };
+          const domains = multiDomains[request.platform] || [request.domain];
           let cookies = [];
           for (const d of domains) {
             cookies = cookies.concat(await chrome.cookies.getAll({ domain: d }));

@@ -14,12 +14,22 @@ const clearKeyBtn = document.getElementById('clear-key-btn');
 const keyStatusEl = document.getElementById('key-status');
 const platformsEl = document.getElementById('platforms');
 const launchAllBtn = document.getElementById('launch-all');
+const syncAllBtn = document.getElementById('sync-all');
 const statusText = document.getElementById('status-text');
 const statusAuth = document.getElementById('status-auth');
 const toastEl = document.getElementById('toast');
 const logPanel = document.getElementById('log-panel');
 const toggleLog = document.getElementById('toggle-log');
 let toastTimer = null;
+
+// 平台 → Cookie 域名映射（只有 cookie 类平台才有，API key 类平台不在此列）
+const COOKIE_DOMAINS = {
+  volcano: '.volcengine.com',
+  xiaomi: '.xiaomimimo.com',
+  deepseek: '.deepseek.com',
+  minimax: '.minimaxi.com',
+  tencent: '.cloud.tencent.com',  // background.js 内部会特殊处理腾讯多域名
+};
 
 const logs = [];
 function log(type, msg) {
@@ -231,6 +241,7 @@ function renderPlatforms() {
       '<span class="status-dot dot-green"></span>' +
       '<span class="name" style="border-left:3px solid ' + color + ';padding-left:8px">' + escHtml(p.name) + '</span>' +
       '</label>' +
+      (COOKIE_DOMAINS[p.id] ? '<span class="sync-cookie-btn" title="一键同步Cookie到服务器">🔄</span>' : '') +
       '<span style="font-size:11px;color:#94a3b8">' + (escHtml(cred && cred.note) || '已采集') + '</span>' +
       '<span class="hide-btn" style="font-size:11px;color:#64748b;flex-shrink:0;cursor:pointer">🙈 隐藏</span></div>' +
       '<div class="platform-body">' +
@@ -240,6 +251,31 @@ function renderPlatforms() {
     // 用事件委托：直接绑定在 card 上
     card.addEventListener('click', function(e) {
       const target = e.target;
+      if (target.classList.contains('sync-cookie-btn')) {
+        const pid = this.dataset.pid;
+        const domain = COOKIE_DOMAINS[pid];
+        if (!domain) return;
+        const pName = (PLATFORMS.find(p => p.id === pid) || {}).name || pid;
+        const origText = target.textContent;
+        target.textContent = '⏳';
+        target.style.pointerEvents = 'none';
+        log('info', '开始同步 ' + pName + ' Cookie (domain=' + domain + ')');
+        chrome.runtime.sendMessage({action: 'collect_and_push_cookie', platform: pid, domain: domain}, (resp) => {
+          target.style.pointerEvents = '';
+          if (resp && resp.success) {
+            target.textContent = '✅';
+            toast(pName + ' Cookie 同步成功', 'success');
+            log('ok', pName + ' Cookie 同步成功');
+          } else {
+            target.textContent = '❌';
+            const errMsg = (resp && resp.error) || '未知错误';
+            toast(pName + ' 同步失败: ' + errMsg, 'error');
+            log('err', pName + ' 同步失败: ' + errMsg);
+          }
+          setTimeout(() => { target.textContent = origText; }, 3000);
+        });
+        return;
+      }
       if (target.classList.contains('hide-btn')) {
         const pid = this.dataset.pid;
         hiddenPlatforms.push(pid);
@@ -313,6 +349,25 @@ async function launchAll() {
   });
 }
 
+async function syncAll() {
+  const syncable = PLATFORMS.filter(p => COOKIE_DOMAINS[p.id] && !hiddenPlatforms.includes(p.id));
+  if (syncable.length === 0) { toast('没有可同步 Cookie 的平台', 'error'); return; }
+  syncAllBtn.disabled = true;
+  syncAllBtn.textContent = '⏳ 同步中 (' + syncable.length + ')...';
+  log('info', '开始同步全部 Cookie: ' + syncable.map(p => p.name).join(', '));
+  let ok = 0, fail = 0;
+  for (const p of syncable) {
+    const domain = COOKIE_DOMAINS[p.id];
+    const result = await chrome.runtime.sendMessage({action: 'collect_and_push_cookie', platform: p.id, domain: domain});
+    if (result && result.success) { ok++; log('ok', p.name + ' ✅'); }
+    else { fail++; log('err', p.name + ' ❌ ' + (result?.error || '')); }
+  }
+  syncAllBtn.textContent = ok > 0 && fail === 0 ? '✅ 全部同步成功' : '🔄 同步全部 Cookie';
+  syncAllBtn.disabled = false;
+  toast('同步完成: ' + ok + ' 成功' + (fail > 0 ? ', ' + fail + ' 失败' : ''), ok > 0 && fail === 0 ? 'success' : 'error');
+  setTimeout(() => { syncAllBtn.textContent = '🔄 同步全部 Cookie'; }, 5000);
+}
+
 // ============ 初始化 ============
 async function init() {
   saveKeyBtn.addEventListener('click', saveTotpKey);
@@ -320,6 +375,7 @@ async function init() {
   keyInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveTotpKey(); });
   clearKeyBtn.addEventListener('click', clearTotpKey);
   launchAllBtn.addEventListener('click', launchAll);
+  if (syncAllBtn) syncAllBtn.addEventListener('click', syncAll);
   if (toggleLog) toggleLog.addEventListener('click', () => logPanel.classList.toggle('open'));
 
   const savedLogs = await chrome.storage.session.get('plugin_logs');

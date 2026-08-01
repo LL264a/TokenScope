@@ -33,7 +33,7 @@ function sendMsg(msg, timeoutMs) {
       { id: 'volcano', name: '火山引擎', url: 'https://console.volcengine.com/ark/region:ark+cn-beijing/plan', domains: ['.volcengine.com'] },
       { id: 'deepseek', name: 'DeepSeek', url: 'https://platform.deepseek.com/usage', domains: ['.deepseek.com'] },
       { id: 'xiaomi', name: '小米 MIMO', url: 'https://platform.xiaomimimo.com/console/plan-manage', domains: ['.xiaomimimo.com'] },
-      { id: 'minimax', name: 'MiniMax', url: 'https://minnimax.chat/usage', domains: ['.minnimax.chat'] },
+      { id: 'minimax', name: 'MiniMax', url: 'https://platform.minimaxi.com/', domains: ['.minimaxi.com', 'platform.minimaxi.com'] },
     ];
   }
 

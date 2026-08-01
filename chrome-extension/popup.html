@@ -153,6 +153,20 @@
     .toast.error { border-color: #b91c1c; color: #ef4444; }
     .toggle-link { font-size: 11px; color: #3b82f6; cursor: pointer; }
     .toggle-link:hover { color: #60a5fa; }
+
+    /* Cookie 同步按钮 */
+    .sync-cookie-btn {
+      font-size: 15px; cursor: pointer; flex-shrink: 0;
+      padding: 2px 4px; border-radius: 4px; transition: background 0.15s;
+    }
+    .sync-cookie-btn:hover { background: #1e293b; }
+    .sync-all-btn {
+      width: 100%; padding: 9px; border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      background: #1e3a5f; color: #60a5fa; margin-bottom: 6px;
+    }
+    .sync-all-btn:hover { background: #1e40af; }
+    .sync-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -185,6 +199,9 @@
 
   <!-- 一键打开 -->
   <button class="all-btn" id="launch-all" disabled>⚡ 一键打开全部平台</button>
+
+  <!-- 同步 Cookie -->
+  <button class="sync-all-btn" id="sync-all">🔄 同步全部 Cookie</button>
 
   <div class="status-bar">
     <span id="status-text">就绪</span>

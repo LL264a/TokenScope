@@ -77,3 +77,6 @@ volcano_api_capture.json
 token_monitor.db
 tokens.db
 server_stderr.log
+
+# 本地同步脚本密钥（含 X-Internal-Key），禁止提交
+sync_config.json
