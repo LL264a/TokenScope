@@ -88,6 +88,28 @@ try {
         $size = strlen(json_encode($input));
         echo json_encode(['status' => 'ok', 'type' => 'capi_data', 'apis' => count($all), 'size' => $size]);
 
+    } elseif ($type === 'cookie_push') {
+        // 手动推送 Cookie（MiniMax 官方因腾讯拼图验证码无法无头自动登，
+        // 由用户在本机浏览器手动登录后复制 cookie 推送到服务器，服务器自动复用）
+        $platform = $payload['platform'] ?? '';
+        $cookie = trim($payload['cookie'] ?? '');
+        if (!$platform || !$cookie) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'error' => '缺少 platform 或 cookie']);
+            exit;
+        }
+        $note = $payload['note'] ?? 'manual-push';
+        $data = json_encode(['cookie' => $cookie], JSON_UNESCAPED_UNICODE);
+        tm_save_credential($platform, 'cookie', $data, $note);
+        $size = strlen(json_encode($input));
+        echo json_encode([
+            'status' => 'ok',
+            'type' => 'cookie_push',
+            'platform' => $platform,
+            'cookie_len' => strlen($cookie),
+            'size' => $size,
+        ]);
+
     } elseif ($type === 'cookie_status') {
         // cookie_status 数据: [{"platform":"...","healthy":bool,"message":"..."}, ...]
         $updated = 0;
