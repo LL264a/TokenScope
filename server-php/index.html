@@ -73,7 +73,6 @@
             .platform-grid > .plan-card { flex: 1 1 100%; min-width: 0; }
             .plan-card { border-radius: 12px; }
             .card-header { padding: 14px 16px; }
-            .card-header .title { font-size: 16px !important; }
             .card-header .subtitle { font-size: 11px; }
             .status-badge { font-size: 10px; padding: 3px 8px; }
             .plan-info { padding: 12px 16px; gap: 10px; font-size: 11px; }
@@ -150,7 +149,6 @@
             .top-bar .meta > span:not(:first-child) { font-size: 10px; }
         }
         @media (max-width: 480px) {
-            .card-header .title { font-size: 14px !important; }
             .quota-hero .remaining-value { font-size: 22px !important; }
             .detail-item .val { font-size: 13px; }
             .status-badge { font-size: 9px; padding: 2px 6px; }
@@ -253,7 +251,6 @@
             .platform-grid { gap: 12px; }
             .platform-grid > .plan-card { flex: 1 1 100%; min-width: 0; }
             .card-header { padding: 14px 16px; }
-            .card-header .title { font-size: 16px !important; }
             .card-header .subtitle { font-size: 11px; }
             .plan-info { padding: 12px 16px; gap: 10px; font-size: 11px; }
             .quota-body { padding: 14px 16px !important; }
@@ -272,27 +269,52 @@
             position: relative;
             min-width: 0;
             width: 100%;
+            /* 容器查询: 卡片自感知宽度，与屏幕断点解耦 */
+            container-type: inline-size;
+            container-name: card;
         }
         .card-header {
-            padding: 20px 24px;
+            padding: clamp(14px, 1.5vw, 20px) clamp(16px, 2vw, 24px);
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid #1e293b;
         }
-        .card-header .title { font-size: 18px; font-weight: 700; color: #f1f5f9; }
-        .card-header .subtitle { font-size: 13px; color: #64748b; margin-top: 2px; }
-        .status-badge { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; }
+        .card-header .title { font-size: clamp(15px, 0.6vw + 12px, 26px); font-weight: 700; color: #f1f5f9; }
+        .card-header .subtitle { font-size: clamp(11px, 0.4vw + 9px, 14px); color: #64748b; margin-top: 2px; }
+        .status-badge { font-size: clamp(10px, 0.3vw + 9px, 13px); font-weight: 600; padding: 4px 12px; border-radius: 20px; }
+
+        /* ====== 容器查询: 卡片宽度自适应 ====== */
+        /* 窄卡片 (<380px): 隐藏次要信息, 缩字号 */
+        @container card (max-width: 380px) {
+            .detail-item.secondary { display: none; }
+            .card-header .subtitle { display: none; }
+            .quota-footer .quota-refresh { display: none; }
+            .detail-grid { gap: 8px; }
+        }
+        /* 极窄卡片 (<300px): 单列详情 */
+        @container card (max-width: 300px) {
+            .detail-grid { grid-template-columns: 1fr; }
+            .quota-hero .remaining-value { font-size: clamp(22px, 8vw, 32px) !important; }
+        }
+        /* 宽卡片 (>=480px): 信息密度更大 */
+        @container card (min-width: 480px) {
+            .detail-grid { grid-template-columns: 1fr 1fr 1fr; }
+        }
+        /* 大卡 (>=720px): 详情四列 */
+        @container card (min-width: 720px) {
+            .detail-grid { grid-template-columns: repeat(4, 1fr); }
+        }
         .badge-available { background: rgba(34,197,94,0.15); color: #4ade80; }
         .badge-warning   { background: rgba(251,191,36,0.15); color: #fbbf24; }
         .badge-exhausted { background: rgba(239,68,68,0.15); color: #f87171; }
 
         .plan-info {
-            padding: 16px 24px;
+            padding: clamp(12px, 0.4vw + 10px, 16px) clamp(16px, 0.5vw + 14px, 24px);
             display: flex;
-            gap: 16px;
+            gap: clamp(10px, 0.3vw + 9px, 16px);
             flex-wrap: wrap;
-            font-size: 13px;
+            font-size: clamp(11px, 0.3vw + 10px, 14px);
             color: #94a3b8;
             border-bottom: 1px solid #1e293b;
         }
@@ -326,16 +348,16 @@
         }
         .xiaomi-section:last-of-type { border-bottom: none; }
         .quota-hero { text-align: center; margin-bottom: 20px; }
-        .quota-hero .remaining-label { font-size: 13px; color: #64748b; margin-bottom: 4px; }
-        .quota-hero .remaining-value { font-size: 36px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
-        .quota-hero .remaining-unit { font-size: 16px; font-weight: 400; color: #94a3b8; margin-left: 4px; }
-        .quota-hero .total-hint { font-size: 12px; color: #4b5563; margin-top: 4px; }
-        .progress-section { margin-bottom: 20px; }
-        .progress-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; }
-        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .detail-item { background: #0d1117; border-radius: 10px; padding: 14px 16px; }
-        .detail-item .label { font-size: 11px; color: #64748b; margin-bottom: 4px; }
-        .detail-item .val { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .quota-hero .remaining-label { font-size: clamp(11px, 1vw, 13px); color: #64748b; margin-bottom: 4px; }
+        .quota-hero .remaining-value { font-size: clamp(26px, 3vw, 36px); font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
+        .quota-hero .remaining-unit { font-size: clamp(13px, 1.2vw, 16px); font-weight: 400; color: #94a3b8; margin-left: 4px; }
+        .quota-hero .total-hint { font-size: clamp(11px, 0.9vw, 12px); color: #4b5563; margin-top: 4px; }
+        .progress-section { margin-bottom: clamp(14px, 1.5vw, 20px); }
+        .progress-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: clamp(11px, 0.9vw, 12px); }
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(8px, 1vw, 12px); }
+        .detail-item { background: #0d1117; border-radius: 10px; padding: clamp(10px, 1.2vw, 14px) clamp(12px, 1.4vw, 16px); }
+        .detail-item .label { font-size: clamp(10px, 0.9vw, 11px); color: #64748b; margin-bottom: 4px; }
+        .detail-item .val { font-size: clamp(14px, 1.4vw, 18px); font-weight: 600; font-variant-numeric: tabular-nums; }
 
         .card-footer {
             padding: 12px 24px;
@@ -1235,7 +1257,7 @@ function renderNoDataCard(p) {
     const errMsg = p.error ? p.error : '凭证已保存，但尚未成功采集到数据。';
     const errAt = p.error_at ? ('<div class="nodata-err-at">最近失败：' + escHtml(p.error_at) + '</div>') : '';
     return '<div class="plan-card nodata-card" data-density="large">' +
-        '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="' + p.platform + '">' + ico + ' ' + escHtml(name) + '</div><div class="subtitle">凭证已保存 · 采集未成功</div></div>' +
+        '<div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="' + p.platform + '">' + ico + ' ' + escHtml(name) + '</div><div class="subtitle">凭证已保存 · 采集未成功</div></div>' +
         '<span class="status-badge badge-warning">需更新凭证</span></div>' +
         '<div class="nodata-body">' +
             '<div class="nodata-icon">🔑</div>' +
@@ -1325,7 +1347,7 @@ function renderVolcanoGroupCard(p) {
         return '<div class="sub-service"><div class="sub-header">' + subName + '</div><div style="padding:12px;color:#4b5563">数据格式异常</div></div>';
     }).join('');
 
-    return '<div class="plan-card" data-density="large"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="volcano">' + brandIcon('volcano', 20) + '火山引擎</div><div class="subtitle">' + visibleServices.length + ' 个服务 · 北京区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>火山引擎 · ' + visibleServices.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" data-density="large"><div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="volcano">' + brandIcon('volcano', 20) + '火山引擎</div><div class="subtitle">' + visibleServices.length + ' 个服务 · 北京区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>火山引擎 · ' + visibleServices.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 /* 子服务: 火山余额 */
@@ -1373,7 +1395,7 @@ function renderTencentCard(p) {
         return '<div class="sub-service"><div class="sub-header">' + subName + '</div><div style="padding:12px;color:#4b5563">数据格式异常</div></div>';
     }).join('');
 
-    return '<div class="plan-card" data-density="large"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="tencent">' + brandIcon('tencent', 20) + '腾讯云</div><div class="subtitle">' + services.length + ' 个服务 · 广州区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>腾讯云 · ' + services.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" data-density="large"><div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="tencent">' + brandIcon('tencent', 20) + '腾讯云</div><div class="subtitle">' + services.length + ' 个服务 · 广州区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>腾讯云 · ' + services.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 /* 平台品牌 SVG 图标 */
@@ -1552,7 +1574,7 @@ function renderVolcanoCard(p) {
         usageHtml = '<div class="detail-grid" style="margin-top:12px"><div class="detail-item"><div class="label">Token总量</div><div class="val">' + totalTokens.toLocaleString() + '</div></div><div class="detail-item"><div class="label">输入Token</div><div class="val blue">' + inputTokens.toLocaleString() + '</div></div><div class="detail-item"><div class="label">输出Token</div><div class="val green">' + outputTokens.toLocaleString() + '</div></div></div>';
     }
 
-    return '<div class="plan-card" style="position:relative"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="volcano">' + brandIcon('volcano', 20) + '火山方舟</div><div class="subtitle">' + planName + ' · ' + (planType === 'pay_as_you_go' ? '按量付费' : planType) + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div class="tokenplan-body"><div style="text-align:center;padding:16px 0"><div style="font-size:12px;color:#64748b;margin-bottom:4px">可用余额</div><div style="font-size:36px;font-weight:800" class="' + c.text + '">¥' + available.toFixed(2) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:8px">现金 ¥' + cash.toFixed(2) + (credit > 0 ? ' · 信控 ¥' + credit.toFixed(2) : '') + (frozen > 0 ? ' · 冻结 ¥' + frozen.toFixed(2) : '') + (arrears > 0 ? ' · <span style="color:#ef4444">欠费 ¥' + arrears.toFixed(2) + '</span>' : '') + '</div></div>' + usageHtml + '</div><div class="card-footer"><span>火山方舟</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div>' + (isExhausted ? '<div class="exhausted-overlay"><div class="exhausted-text">余额不足</div><div class="exhausted-recovery"><span style="color:#fca5a5">请及时充值</span></div></div>' : '') + '</div>';
+    return '<div class="plan-card" style="position:relative"><div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="volcano">' + brandIcon('volcano', 20) + '火山方舟</div><div class="subtitle">' + planName + ' · ' + (planType === 'pay_as_you_go' ? '按量付费' : planType) + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div class="tokenplan-body"><div style="text-align:center;padding:16px 0"><div style="font-size:12px;color:#64748b;margin-bottom:4px">可用余额</div><div style="font-size:36px;font-weight:800" class="' + c.text + '">¥' + available.toFixed(2) + '</div><div style="font-size:12px;color:#94a3b8;margin-top:8px">现金 ¥' + cash.toFixed(2) + (credit > 0 ? ' · 信控 ¥' + credit.toFixed(2) : '') + (frozen > 0 ? ' · 冻结 ¥' + frozen.toFixed(2) : '') + (arrears > 0 ? ' · <span style="color:#ef4444">欠费 ¥' + arrears.toFixed(2) + '</span>' : '') + '</div></div>' + usageHtml + '</div><div class="card-footer"><span>火山方舟</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div>' + (isExhausted ? '<div class="exhausted-overlay"><div class="exhausted-text">余额不足</div><div class="exhausted-recovery"><span style="color:#fca5a5">请及时充值</span></div></div>' : '') + '</div>';
 }
 
 function renderXiaomiCard(p) {
@@ -1600,7 +1622,7 @@ function renderXiaomiCard(p) {
             '</div>';
     }
 
-    return '<div class="plan-card" data-density="compact"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="xiaomi">'+ brandIcon('xiaomi', 20) + 'MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + balanceHtml + planHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" data-density="compact"><div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="xiaomi">'+ brandIcon('xiaomi', 20) + 'MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + balanceHtml + planHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 function renderDeepSeekCard(p) {
@@ -1657,7 +1679,7 @@ function renderDeepSeekCard(p) {
 
     const badge = p.balance > 0 ? getStatusBadge(30) : getStatusBadge(monthlyCost > 0 ? 70 : 30);
     
-    return '<div class="plan-card" data-density="compact"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="deepseek">' + brandIcon('deepseek', 20) + 'DeepSeek</div><div class="subtitle">按量计费</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + balanceHtml + '</div></div><div style="padding:0 16px 12px">' + modelHtml + '</div><div class="card-footer"><span>DeepSeek Token用量</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" data-density="compact"><div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="deepseek">' + brandIcon('deepseek', 20) + 'DeepSeek</div><div class="subtitle">按量计费</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + balanceHtml + '</div></div><div style="padding:0 16px 12px">' + modelHtml + '</div><div class="card-footer"><span>DeepSeek Token用量</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 function renderMiniMaxCard(p) {
@@ -1738,7 +1760,7 @@ function renderMiniMaxOfficialCard(p) {
     const badge = remainingDays > 0 ? getStatusBadge(maxPct) : getStatusBadge(70);
 
     return '<div class="plan-card" data-density="compact">' +
-        '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="minimax">' + brandIcon('minimax', 20) + 'MiniMax</div><div class="subtitle">' + escHtml(planName) + (accountName ? ' · ' + escHtml(accountName) : '') + (remainingDays ? ' · ' + remainingDays + '天到期' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
+        '<div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="minimax">' + brandIcon('minimax', 20) + 'MiniMax</div><div class="subtitle">' + escHtml(planName) + (accountName ? ' · ' + escHtml(accountName) : '') + (remainingDays ? ' · ' + remainingDays + '天到期' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
         '<div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + statsHtml + '</div></div>' +
         '<div style="padding:0 16px 12px">' + quotaHtml + modelHtml + '</div>' +
         '<div class="card-footer"><span>' + escHtml(planName) + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
@@ -1772,7 +1794,7 @@ function renderMiniMaxGatewayCard(p) {
         '</div>';
 
     return '<div class="plan-card" data-density="compact">' +
-        '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="minimax_gateway">' + brandIcon('minimax', 20) + 'MiniMax中转</div><div class="subtitle">' + escHtml(planName) + (p.remaining_days ? ' · ' + p.remaining_days + '天到期' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
+        '<div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="minimax_gateway">' + brandIcon('minimax', 20) + 'MiniMax中转</div><div class="subtitle">' + escHtml(planName) + (p.remaining_days ? ' · ' + p.remaining_days + '天到期' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
         '<div class="quota-body" style="position:relative">' + quotaHtml + '</div>' +
         '<div class="card-footer"><span>' + escHtml(planName) + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
@@ -1822,7 +1844,7 @@ function renderGptGatewayCard(p) {
     const badge = balance > 10 ? getStatusBadge(30) : balance > 0 ? getStatusBadge(70) : getStatusBadge(100);
 
     return '<div class="plan-card" data-density="compact">' +
-        '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="gpt_gateway">🔌 GPT中转</div><div class="subtitle">按量付费' + (accountName ? ' · ' + escHtml(accountName) : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
+        '<div class="card-header"><div><div class="title platform-title" style="cursor:pointer" data-platform="gpt_gateway">🔌 GPT中转</div><div class="subtitle">按量付费' + (accountName ? ' · ' + escHtml(accountName) : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
         '<div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + statsHtml + '</div></div>' +
         '<div style="padding:0 16px 12px">' + modelHtml + '</div>' +
         '<div class="card-footer"><span>GPT API Gateway</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
