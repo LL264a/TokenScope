@@ -57,6 +57,15 @@ internal_key.txt
 .ssh_workbuddy
 .ssh_workbuddy.pub
 
+# 中转站 API Key（历史曾误提交过 gw-41482f33-..., 已改写历史）—— 禁止提交
+minimax_token.txt
+
+# Release/构建产物（700KB+，无密钥但增加 clone 成本）
+dist/
+
+# Codebuddy 工作区本地配置（无敏感但不入库）
+.codebuddy/settings.local.json
+
 # Scratch / debug / temp (relocated to _archive/)
 _archive/
 cdp_*.py
