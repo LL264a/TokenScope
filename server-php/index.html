@@ -180,21 +180,75 @@
         .page { display: none; }
         .page.active { display: block; }
 
-        /* ====== 平台卡片 flexbox响应式 [v2-05050300] ====== */
+        /* ====== 平台卡片 5 档断点响应式 [v2-05050301] ====== */
+        /* 断点: 640/960/1280/1600/1920 — 1/1/2/3/3/4 列 */
+        /* 数据密集大卡(tencent/volcano/xiaomi/deepseek) data-density="large" 默认独占, 大屏才并排 */
         .platform-grid {
             display: flex;
             flex-wrap: wrap;
-            gap: 16px;
+            gap: 14px;
             margin-bottom: 24px;
         }
+        /* 默认 (sm 640-959): 1 列 */
         .platform-grid > .plan-card {
-            flex: 0 1 auto;
-            width: 340px;
+            flex: 1 1 100%;
+            min-width: 0;
             max-width: 100%;
         }
-        @media (min-width: 1400px) {
-            .platform-grid > .plan-card { width: calc(33.33% - 11px); }
+        /* md (960-1279): 2 列 */
+        @media (min-width: 960px) {
+            .platform-grid { gap: 14px; }
+            .platform-grid > .plan-card[data-density="compact"],
+            .platform-grid > .plan-card:not([data-density]) {
+                flex: 0 0 calc(50% - 7px);
+                max-width: calc(50% - 7px);
+            }
+            /* 大卡片仍独占 */
+            .platform-grid > .plan-card[data-density="large"] {
+                flex: 1 1 100%;
+                max-width: 100%;
+            }
         }
+        /* lg (1280-1599): 3 列 */
+        @media (min-width: 1280px) {
+            .platform-grid { gap: 16px; }
+            .platform-grid > .plan-card[data-density="compact"],
+            .platform-grid > .plan-card:not([data-density]) {
+                flex: 0 0 calc(33.333% - 11px);
+                max-width: calc(33.333% - 11px);
+            }
+            .platform-grid > .plan-card[data-density="large"] {
+                flex: 1 1 100%;
+                max-width: 100%;
+            }
+        }
+        /* xl (1600-1919): 3 列, 大卡片可 50% 并排 */
+        @media (min-width: 1600px) {
+            .platform-grid { gap: 18px; }
+            .platform-grid > .plan-card[data-density="compact"],
+            .platform-grid > .plan-card:not([data-density]) {
+                flex: 0 0 calc(33.333% - 12px);
+                max-width: calc(33.333% - 12px);
+            }
+            .platform-grid > .plan-card[data-density="large"] {
+                flex: 0 0 calc(50% - 9px);
+                max-width: calc(50% - 9px);
+            }
+        }
+        /* 2xl (≥1920): 4 列, 大卡片占 2 列 */
+        @media (min-width: 1920px) {
+            .platform-grid { gap: 20px; }
+            .platform-grid > .plan-card[data-density="compact"],
+            .platform-grid > .plan-card:not([data-density]) {
+                flex: 0 0 calc(25% - 15px);
+                max-width: calc(25% - 15px);
+            }
+            .platform-grid > .plan-card[data-density="large"] {
+                flex: 0 0 calc(50% - 10px);
+                max-width: calc(50% - 10px);
+            }
+        }
+        /* 极小屏 (≤640px): 1 列 + 紧凑间距 */
         @media (max-width: 640px) {
             .platform-grid { gap: 12px; }
             .platform-grid > .plan-card { flex: 1 1 100%; min-width: 0; }
@@ -1180,7 +1234,7 @@ function renderNoDataCard(p) {
     const defType = (cfg && cfg.credential_types && cfg.credential_types[0]) ? cfg.credential_types[0] : 'cookie';
     const errMsg = p.error ? p.error : '凭证已保存，但尚未成功采集到数据。';
     const errAt = p.error_at ? ('<div class="nodata-err-at">最近失败：' + escHtml(p.error_at) + '</div>') : '';
-    return '<div class="plan-card nodata-card" style="flex:0 0 100%;min-width:0">' +
+    return '<div class="plan-card nodata-card" data-density="large">' +
         '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="' + p.platform + '">' + ico + ' ' + escHtml(name) + '</div><div class="subtitle">凭证已保存 · 采集未成功</div></div>' +
         '<span class="status-badge badge-warning">需更新凭证</span></div>' +
         '<div class="nodata-body">' +
@@ -1271,7 +1325,7 @@ function renderVolcanoGroupCard(p) {
         return '<div class="sub-service"><div class="sub-header">' + subName + '</div><div style="padding:12px;color:#4b5563">数据格式异常</div></div>';
     }).join('');
 
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="volcano">' + brandIcon('volcano', 20) + '火山引擎</div><div class="subtitle">' + visibleServices.length + ' 个服务 · 北京区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>火山引擎 · ' + visibleServices.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" data-density="large"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="volcano">' + brandIcon('volcano', 20) + '火山引擎</div><div class="subtitle">' + visibleServices.length + ' 个服务 · 北京区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>火山引擎 · ' + visibleServices.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 /* 子服务: 火山余额 */
@@ -1319,7 +1373,7 @@ function renderTencentCard(p) {
         return '<div class="sub-service"><div class="sub-header">' + subName + '</div><div style="padding:12px;color:#4b5563">数据格式异常</div></div>';
     }).join('');
 
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="tencent">' + brandIcon('tencent', 20) + '腾讯云</div><div class="subtitle">' + services.length + ' 个服务 · 广州区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>腾讯云 · ' + services.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" data-density="large"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="tencent">' + brandIcon('tencent', 20) + '腾讯云</div><div class="subtitle">' + services.length + ' 个服务 · 广州区域</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:0">' + servicesHtml + '</div><div class="card-footer"><span>腾讯云 · ' + services.length + ' 个服务</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 /* 平台品牌 SVG 图标 */
@@ -1546,7 +1600,7 @@ function renderXiaomiCard(p) {
             '</div>';
     }
 
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="xiaomi">' + brandIcon('xiaomi', 20) + 'MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + balanceHtml + planHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" data-density="compact"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="xiaomi">'+ brandIcon('xiaomi', 20) + 'MIMO</div><div class="subtitle">Token Plan' + (remainingDays ? ' · ' + remainingDays + '天剩余' : '') + (autoRenew ? ' · 🔄自动续费' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div>' + balanceHtml + planHtml + '</div><div class="card-footer"><span>Token Plan' + (validTo ? ' · 到期 ' + validTo : '') + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 function renderDeepSeekCard(p) {
@@ -1603,7 +1657,7 @@ function renderDeepSeekCard(p) {
 
     const badge = p.balance > 0 ? getStatusBadge(30) : getStatusBadge(monthlyCost > 0 ? 70 : 30);
     
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="deepseek">' + brandIcon('deepseek', 20) + 'DeepSeek</div><div class="subtitle">按量计费</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + balanceHtml + '</div></div><div style="padding:0 16px 12px">' + modelHtml + '</div><div class="card-footer"><span>DeepSeek Token用量</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
+    return '<div class="plan-card" data-density="compact"><div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="deepseek">' + brandIcon('deepseek', 20) + 'DeepSeek</div><div class="subtitle">按量计费</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div><div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + balanceHtml + '</div></div><div style="padding:0 16px 12px">' + modelHtml + '</div><div class="card-footer"><span>DeepSeek Token用量</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
 }
 
 function renderMiniMaxCard(p) {
@@ -1683,7 +1737,7 @@ function renderMiniMaxOfficialCard(p) {
     const maxPct = Math.max(q5h.used_pct || 0, qWeekly.used_pct || 0);
     const badge = remainingDays > 0 ? getStatusBadge(maxPct) : getStatusBadge(70);
 
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0">' +
+    return '<div class="plan-card" data-density="compact">' +
         '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="minimax">' + brandIcon('minimax', 20) + 'MiniMax</div><div class="subtitle">' + escHtml(planName) + (accountName ? ' · ' + escHtml(accountName) : '') + (remainingDays ? ' · ' + remainingDays + '天到期' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
         '<div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + statsHtml + '</div></div>' +
         '<div style="padding:0 16px 12px">' + quotaHtml + modelHtml + '</div>' +
@@ -1717,7 +1771,7 @@ function renderMiniMaxGatewayCard(p) {
             '<div class="quota-footer"><span class="quota-pct ' + cW.text + '">' + wPct + '% 已用</span><span class="quota-refresh">剩余 ' + (wTotal - wUsed).toLocaleString() + ' 次</span></div>' +
         '</div>';
 
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0">' +
+    return '<div class="plan-card" data-density="compact">' +
         '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="minimax_gateway">' + brandIcon('minimax', 20) + 'MiniMax中转</div><div class="subtitle">' + escHtml(planName) + (p.remaining_days ? ' · ' + p.remaining_days + '天到期' : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
         '<div class="quota-body" style="position:relative">' + quotaHtml + '</div>' +
         '<div class="card-footer"><span>' + escHtml(planName) + '</span><span>' + (p.last_updated ? new Date(p.last_updated).toLocaleTimeString() : '-') + '</span></div></div>';
@@ -1767,7 +1821,7 @@ function renderGptGatewayCard(p) {
 
     const badge = balance > 10 ? getStatusBadge(30) : balance > 0 ? getStatusBadge(70) : getStatusBadge(100);
 
-    return '<div class="plan-card" style="flex:0 0 100%;min-width:0">' +
+    return '<div class="plan-card" data-density="compact">' +
         '<div class="card-header"><div><div class="title platform-title" style="font-size:22px;cursor:pointer" data-platform="gpt_gateway">🔌 GPT中转</div><div class="subtitle">按量付费' + (accountName ? ' · ' + escHtml(accountName) : '') + '</div></div><span class="status-badge ' + badge.cls + '">' + badge.text + '</span></div>' +
         '<div style="padding:8px 16px 4px;background:rgba(15,23,42,0.3);border-radius:10px;margin:8px 16px"><div style="padding:4px 0">' + statsHtml + '</div></div>' +
         '<div style="padding:0 16px 12px">' + modelHtml + '</div>' +
